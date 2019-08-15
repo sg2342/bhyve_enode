@@ -7,20 +7,22 @@ src_env_conf="${basedir}/src-env.conf"
 src_conf="${basedir}/src.conf"
 enode_dist="${basedir}/enode.dist"
 
-obj_dir_pfx=/usr/obj/bhyve_enode
+obj_dir_pfx="${basedir}/_build"
 _build_done="${obj_dir_pfx}/_build_done"
 _tar_done="${obj_dir_pfx}/_tar_done"
 
 kern_conf_dir="${basedir}/kernel"
 
-install_dir="${obj_dir_pfx}/install_dir"
-install_img="${obj_dir_pfx}/install_img"
+install_dir="${obj_dir_pfx}/bhyve_enode_dir"
+install_img="${obj_dir_pfx}/bhyve_enode_img"
+archive="${obj_dir_pfx}/bhyve_enode.txz"
 
 export MAKEOBJDIRPREFIX="$obj_dir_pfx"
 export SRCCONF="$src_conf"
+
 ## /bin/sh and the libraries needed by it
 ## additional libraries needed by erts runtime
-targets="bin/sh
+base_targets="bin/sh
          lib/msun
          lib/libc
          lib/libedit
@@ -44,7 +46,7 @@ else
     env KERNCONFDIR="$kern_conf_dir" \
         make -s -j8 -C /usr/src  SRC_ENV_CONF="$src_env_conf" buildkernel
 
-    for tgt in $targets
+    for tgt in $base_targets
     do make -s -j8 -C /usr/src/"$tgt" SRC_ENV_CONF="$src_env_conf"
     done
 
@@ -72,26 +74,28 @@ else
         installkernel
 
     # install bin/sh and libraries
-    for tgt in $targets
-    do make -C /usr/src/"$tgt" SRC_ENV_CONF="$src_env_conf" \
+    for tgt in $base_targets
+    do make -s -C /usr/src/"$tgt" SRC_ENV_CONF="$src_env_conf" \
             DESTDIR="$install_dir" install
     done
 
-    ## remove static libraries and pkgconfig data
+    ## remove static libraries, pkgconfig data and symbolic links
     rm -rf "$install_dir"/usr/lib/lib*.a "$install_dir"/usr/libdata
-    ## remove all dynamic links
     find "$install_dir"/usr/lib "$install_dir"/usr/libexec -type l -delete
 
     ## install minit
     make -s -C "${basedir}/minit" SRC_ENV_CONF="$src_env_conf" \
          DESTDIR="$install_dir"/sbin install WITHOUT_DEBUG_FILES=1
-
     for f in "${basedir}/minit/etc_minit/"*
     do install -o root -g wheel -m 555 "$f" \
                "${install_dir}/etc/minit/$(basename "$f")"
     done
 
-    find "$install_dir" -print
-    umount "$install_dir"; mdconfig -du 23
+    tar -C "$install_dir" -cvaf "$archive" \
+        boot var dev etc bin sbin lib libexec sbin usr root
 
+    umount "$install_dir"
+    mdconfig -du 23
+    rm -rf "$install_img"
+    touch "$_tar_done"
 fi

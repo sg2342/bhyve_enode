@@ -1,10 +1,8 @@
 #!/bin/sh
 
 AGAIN=/etc/minit/again
-NODE_ROOT=/etc/node_root
 
-IFS= read -r node_root < "$NODE_ROOT"
-/etc/minit/start "$node_root" &
+/etc/minit/start /root &
 child=$!
 
 again=1
