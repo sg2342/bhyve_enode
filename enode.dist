@@ -1,0 +1,30 @@
+/set type=dir uid=0 gid=0 mode=0755
+.
+        boot
+                kernel
+                ..
+        ..
+        var
+                log
+                ..
+        ..
+        dev     mode=0555
+        ..
+        etc
+                minit
+                ..
+        ..
+        bin
+        ..
+        lib
+        ..
+        libexec
+        ..
+        sbin
+        ..
+        usr
+                lib
+                ..
+                libexec
+                ..
+        ..
