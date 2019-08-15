@@ -1,0 +1,25 @@
+#!/bin/sh
+
+AGAIN=/etc/minit/again
+NODE_ROOT=/etc/node_root
+
+IFS= read -r node_root < "$NODE_ROOT"
+/etc/minit/start "$node_root" &
+child=$!
+
+again=1
+while [ $again -gt 0 ]; do
+    again=$((again - 1))
+    wait $child
+    exitcode=$?
+    read -t 3 _ignored
+    if [ $exitcode -ne 0 ]; then exit $exitcode ; fi
+    if [ -s "$AGAIN" ]; then
+        again=1
+        IFS= read -r start_data < "$AGAIN"
+        echo -n > "$AGAIN"
+        /etc/minit/start "$start_data" &
+        child=$!
+    fi
+done
+exit 0
