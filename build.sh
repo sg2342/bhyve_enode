@@ -18,9 +18,13 @@ obj_dir_pfx=/usr/obj/bhyve_enode
 export MAKEOBJDIRPREFIX="$obj_dir_pfx"
 export KERNCONFDIR="${basedir}/kernel"
 
-## build
+## build kernel
 kldload filemon || true
-env SRCCONF="$src_conf" \
-    make -s -j8 -C /usr/src \
-    SRC_ENV_CONF="$src_env_conf" \
-    buildworld buildkernel
+env SRCCONF="$src_conf" make -s -j8 -C /usr/src  SRC_ENV_CONF="$src_env_conf" \
+    buildkernel
+
+
+## build /bin/sh
+env SRCCONF="$src_conf" make -s -j8 -C /usr/src/bin/sh  SRC_ENV_CONF="$src_env_conf"
+
+
