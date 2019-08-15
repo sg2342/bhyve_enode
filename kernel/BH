@@ -61,5 +61,3 @@ device		virtio
 device		vtnet
 device		virtio_pci
 device		virtio_blk
-
-device 		em
