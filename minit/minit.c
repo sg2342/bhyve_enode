@@ -297,7 +297,6 @@ ip4_config(const char* iface, const char* cidr)
 		printf("FAILED: ioctl(): %s\n", strerror(errno));
 
 	close(sockfd);
-	return;
 }
 
 static void
@@ -380,13 +379,11 @@ ip4_route(const char* dst, const char* gw)
                 printf("FAILED: socket(): %s", strerror(errno));
                 return;
         }
-        if (write(sockfd, (char *)&m_rtmsg, l) < 0) {
+
+        if (write(sockfd, (char *)&m_rtmsg, l) < 0)
                 printf("FAILED: writing to routing socket: %d\n", errno);
-                close(sockfd);
-                return;
-        }
+
         close(sockfd);
-	return;
 }
 
 static void
