@@ -9,6 +9,8 @@
 #include <net/if.h>
 #include <net/route.h>
 #include <netinet/in.h>
+#include <netinet/in_var.h>
+#include <netinet6/nd6.h>
 #include <arpa/inet.h>
 
 #include <errno.h>
@@ -34,6 +36,7 @@ static void remount_root();
 static void setup_hostname();
 static void setup_network(void);
 static void ip4_config(const char* iface, const char* cidr);
+static void ip6_config(const char* iface, const char* cidr);
 static void ip4_route(const char* dst, const char* gw);
 static void setup_signal_handlers();
 static void handle_signal(int sig);
@@ -174,6 +177,20 @@ setup_network(void)
 		}
 	}
 
+	printf("> setup_network()\n>> ipv6 interfaces\n");
+
+	ip6_config("lo0", "::1/128");
+
+	for (i = 0; i < MINIT_MAX_NETIF; i++) {
+                snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip6.iface.%d", i);
+		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
+		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
+			*ptr = 0;
+			ptr++;
+			ip6_config(kenv_value, ptr);
+		}
+	}
+
 	printf(">> ipv4 routes\n");
 
 	for (i = 0; i < MINIT_MAX_ROUTE; i++) {
@@ -185,6 +202,56 @@ setup_network(void)
 			ip4_route(kenv_value, ptr);
 		}
 	}
+}
+
+static void
+ip6_config(const char* iface, const char* cidr)
+{
+	int sockfd;
+	int bits;
+	struct in6_aliasreq ifra;
+	struct in6_addr *addr, *mask;
+
+	memset(&ifra, 0, sizeof(ifra));
+
+	ifra.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
+	ifra.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
+	ifra.ifra_addr.sin6_family = AF_INET6;
+	ifra.ifra_addr.sin6_len = sizeof(struct sockaddr_in6);
+	ifra.ifra_prefixmask.sin6_family = AF_INET6;
+	ifra.ifra_prefixmask.sin6_len = sizeof(struct sockaddr_in6);
+
+	addr = &(ifra.ifra_addr.sin6_addr);
+	mask = &(ifra.ifra_prefixmask.sin6_addr);
+
+	strncpy(ifra.ifra_name, iface, sizeof(ifra.ifra_name));
+
+        printf(">>> ip6_config(\"%s\", \"%s\")\n", iface, cidr);
+
+	if (inet_cidr_pton(AF_INET6, cidr, addr, &bits)) {
+		printf("FAILED: inet_cidr_pton(): %s\n", strerror(errno));
+		return;
+	}
+
+	if (bits <= 0 || bits == 128)
+		memset(mask, 0xff, sizeof(struct in6_addr));
+	else {
+		u_char *cp;
+		memset(mask, 0x00, sizeof(struct in6_addr));
+		for (cp = (u_char *)mask; bits > 7; bits -= 8)
+			*cp++ = 0xff;
+		*cp = 0xff << (8 - bits);
+	}
+
+	if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
+		printf("FAILED: socket(): %s\n", strerror(errno));
+		return;
+	}
+
+	if (ioctl(sockfd, SIOCAIFADDR_IN6, &ifra))
+		printf("FAILED: ioctl(): %s\n", strerror(errno));
+
+	close(sockfd);
 }
 
 static void
@@ -201,10 +268,6 @@ ip4_config(const char* iface, const char* cidr)
 	memset(&ifra, 0, sizeof ifra);
 	strcpy(ifra.ifra_name, iface);
 
-	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		printf("FAILED: socket(): %s\n", strerror(errno));
-		return;
-	}
 
 	addrp = (struct sockaddr_in *)&ifra.ifra_addr;
 	addrp->sin_family = AF_INET;
@@ -220,17 +283,19 @@ ip4_config(const char* iface, const char* cidr)
                              sizeof(addrp->sin_addr));
 	if (bits < 0) {
 		printf("FAILED: inet_net_pton(): %s\n", strerror(errno));
-		close(sockfd);
 		return;
 	}
 	mask = 0xffffffff << (32 - bits);
 	maskp->sin_addr.s_addr = htonl(mask);
 
-	if (ioctl(sockfd, SIOCAIFADDR, &ifra)) {
-		printf("FAILED: ioctl(): %s\n", strerror(errno));
-		close(sockfd);
+	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		printf("FAILED: socket(): %s\n", strerror(errno));
 		return;
 	}
+
+	if (ioctl(sockfd, SIOCAIFADDR, &ifra))
+		printf("FAILED: ioctl(): %s\n", strerror(errno));
+
 	close(sockfd);
 	return;
 }
