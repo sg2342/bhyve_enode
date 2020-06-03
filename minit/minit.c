@@ -52,8 +52,8 @@ main(int argc __unused, char** argv __unused)
 	setlogin("root");
 	setup_devfs();
 	setup_console();
-        remount_root();
-        setup_hostname();
+	remount_root();
+	setup_hostname();
 	setup_network();
 	setup_signal_handlers();
 	loop_start_prog();
@@ -66,12 +66,12 @@ setup_devfs(void)
 {
 	struct iovec iov[4];
 
-        char _fstype[] = "fstype";
-        char _devfs[] = "devfs";
-        char _fspath[] = "fspath";
+	char _fstype[] = "fstype";
+	char _devfs[] = "devfs";
+	char _fspath[] = "fspath";
 	char _dev[] = "/dev";
 
-        iov[0].iov_base = _fstype; iov[0].iov_len = sizeof(_fstype);
+	iov[0].iov_base = _fstype; iov[0].iov_len = sizeof(_fstype);
 	iov[1].iov_base = _devfs; iov[1].iov_len = sizeof(_devfs);
 	iov[2].iov_base = _fspath; iov[2].iov_len = sizeof(_fspath);
 	iov[3].iov_base = _dev; iov[3].iov_len = sizeof(_dev);
@@ -104,21 +104,21 @@ remount_root()
 	int b;
 	struct iovec iov[16];
 
-        char _sync[] = "sync";
-        char _noatime[] = "noatime";
-        char _rw[] = "rw";
-        char _noro[] = "noro";
-        char _update[] = "update";
-        char _fstype[] = "fstype";
-        char _ufs[] = "ufs";
-        char _fspath[] = "fspath";
+	char _sync[] = "sync";
+	char _noatime[] = "noatime";
+	char _rw[] = "rw";
+	char _noro[] = "noro";
+	char _update[] = "update";
+	char _fstype[] = "fstype";
+	char _ufs[] = "ufs";
+	char _fspath[] = "fspath";
 	char _slash[] = "/";
-        char _from[] = "from";
+	char _from[] = "from";
 
-        printf ("> remount_root()\n");
+	printf ("> remount_root()\n");
 
 	b = kenv(KENV_GET, "vfs.root.mountfrom",
-	         kenv_value, sizeof(kenv_value) -1);
+		 kenv_value, sizeof(kenv_value) -1);
 	if (b < 4 || strncmp(kenv_value, "ufs:", 4) != 0) {
 		printf("FAILED: kenv\n");
 		return;
@@ -149,10 +149,10 @@ remount_root()
 static void
 setup_hostname()
 {
-        char hn[256];
-        int b;
-        if ((b = kenv(KENV_GET, "minit.hostname", hn, sizeof(hn) -1)) > 0)
-                sethostname((const char*)hn, (size_t)b);
+	char hn[256];
+	int b;
+	if ((b = kenv(KENV_GET, "minit.hostname", hn, sizeof(hn) -1)) > 0)
+		sethostname((const char*)hn, (size_t)b);
 }
 
 static void
@@ -168,7 +168,7 @@ setup_network(void)
 	ip4_config("lo0", "127.0.0.1/8");
 
 	for (i = 0; i < MINIT_MAX_NETIF; i++) {
-                snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip4.iface.%d", i);
+		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip4.iface.%d", i);
 		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
 		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
 			*ptr = 0;
@@ -182,7 +182,7 @@ setup_network(void)
 	ip6_config("lo0", "::1/128");
 
 	for (i = 0; i < MINIT_MAX_NETIF; i++) {
-                snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip6.iface.%d", i);
+		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip6.iface.%d", i);
 		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
 		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
 			*ptr = 0;
@@ -194,7 +194,7 @@ setup_network(void)
 	printf(">> ipv4 routes\n");
 
 	for (i = 0; i < MINIT_MAX_ROUTE; i++) {
-                snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip4.route.%d", i);
+		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip4.route.%d", i);
 		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
 		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
 			*ptr = 0;
@@ -226,7 +226,7 @@ ip6_config(const char* iface, const char* cidr)
 
 	strncpy(ifra.ifra_name, iface, sizeof(ifra.ifra_name));
 
-        printf(">>> ip6_config(\"%s\", \"%s\")\n", iface, cidr);
+	printf(">>> ip6_config(\"%s\", \"%s\")\n", iface, cidr);
 
 	if (inet_cidr_pton(AF_INET6, cidr, addr, &bits)) {
 		printf("FAILED: inet_cidr_pton(): %s\n", strerror(errno));
@@ -263,7 +263,7 @@ ip4_config(const char* iface, const char* cidr)
 	struct ifaliasreq ifra;
 	struct sockaddr_in *addrp, *maskp;
 
-        printf(">>> ip4_config(\"%s\", \"%s\")\n", iface, cidr);
+	printf(">>> ip4_config(\"%s\", \"%s\")\n", iface, cidr);
 
 	memset(&ifra, 0, sizeof ifra);
 	strcpy(ifra.ifra_name, iface);
@@ -280,7 +280,7 @@ ip4_config(const char* iface, const char* cidr)
 	maskp->sin_port = 0;
 
 	bits = inet_net_pton(AF_INET, cidr, &addrp->sin_addr,
-                             sizeof(addrp->sin_addr));
+			     sizeof(addrp->sin_addr));
 	if (bits < 0) {
 		printf("FAILED: inet_net_pton(): %s\n", strerror(errno));
 		return;
@@ -302,88 +302,88 @@ ip4_config(const char* iface, const char* cidr)
 static void
 ip4_route(const char* dst, const char* gw)
 {
-        struct sockaddr_storage so[3];
-        struct {
-                struct rt_msghdr m_rtm;
-                char   m_space[512];
-        } m_rtmsg;
-        char *cp = m_rtmsg.m_space;
-        int l;
-        int i;
-        int sockfd;
+	struct sockaddr_storage so[3];
+	struct {
+		struct rt_msghdr m_rtm;
+		char   m_space[512];
+	} m_rtmsg;
+	char *cp = m_rtmsg.m_space;
+	int l;
+	int i;
+	int sockfd;
 
-        struct sockaddr *sa;
-        struct sockaddr_in *sin;
-        int bits;
-        u_long mask = 0;
+	struct sockaddr *sa;
+	struct sockaddr_in *sin;
+	int bits;
+	u_long mask = 0;
 
-        printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
+	printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
 
-        memset(so, 0, sizeof(so));
+	memset(so, 0, sizeof(so));
 
-        /* RTA_DST */
-        sa = (struct sockaddr*)&so[0];
-        sa->sa_family = AF_INET;
-        sa->sa_len = sizeof(struct sockaddr_in);
-        sin = (struct sockaddr_in *)(void *)sa;
-        if (strcmp(dst, "default") == 0) {
-                bits = 0;
-                sin->sin_addr.s_addr = 0;
-        } else {
-                bits = inet_net_pton(AF_INET, dst, &sin->sin_addr,
-                                     sizeof(sin->sin_addr));
-                if (bits < 0) {
-                        printf("FAILED: invalid dst\n");
-                        return;
-                }
-                /* 0 is special */
-                if (sin->sin_addr.s_addr == 0 && bits == 32)
-                        bits = 0;
-        }
+	/* RTA_DST */
+	sa = (struct sockaddr*)&so[0];
+	sa->sa_family = AF_INET;
+	sa->sa_len = sizeof(struct sockaddr_in);
+	sin = (struct sockaddr_in *)(void *)sa;
+	if (strcmp(dst, "default") == 0) {
+		bits = 0;
+		sin->sin_addr.s_addr = 0;
+	} else {
+		bits = inet_net_pton(AF_INET, dst, &sin->sin_addr,
+				     sizeof(sin->sin_addr));
+		if (bits < 0) {
+			printf("FAILED: invalid dst\n");
+			return;
+		}
+		/* 0 is special */
+		if (sin->sin_addr.s_addr == 0 && bits == 32)
+			bits = 0;
+	}
 
-        /* RTA_GW */
-        sa = (struct sockaddr*)&so[1];
-        sa->sa_family = AF_INET;
-        sa->sa_len = sizeof(struct sockaddr_in);
-        sin = (struct sockaddr_in *)(void *)sa;
-        if (inet_net_pton(AF_INET, gw, &sin->sin_addr,
-                          sizeof(sin->sin_addr)) != 32) {
-                printf("FAILED: invalid gw\n");
-                return;
-        }
+	/* RTA_GW */
+	sa = (struct sockaddr*)&so[1];
+	sa->sa_family = AF_INET;
+	sa->sa_len = sizeof(struct sockaddr_in);
+	sin = (struct sockaddr_in *)(void *)sa;
+	if (inet_net_pton(AF_INET, gw, &sin->sin_addr,
+			  sizeof(sin->sin_addr)) != 32) {
+		printf("FAILED: invalid gw\n");
+		return;
+	}
 
-        /* RTA_NETMASK */
-        sa = (struct sockaddr*)&so[2];
-        sa->sa_family = AF_INET;
-        sa->sa_len = sizeof(struct sockaddr_in);
-        sin = (struct sockaddr_in *)(void *)sa;
-        if (bits) mask = 0xffffffff << (32 - bits);
-        sin->sin_addr.s_addr = htonl(mask);
+	/* RTA_NETMASK */
+	sa = (struct sockaddr*)&so[2];
+	sa->sa_family = AF_INET;
+	sa->sa_len = sizeof(struct sockaddr_in);
+	sin = (struct sockaddr_in *)(void *)sa;
+	if (bits) mask = 0xffffffff << (32 - bits);
+	sin->sin_addr.s_addr = htonl(mask);
 
-        memset(&m_rtmsg, 0, sizeof(m_rtmsg));
+	memset(&m_rtmsg, 0, sizeof(m_rtmsg));
 
-        for (i = 0; i < 3; i++) {
-                l = SA_SIZE(&(so[i]));
-                memmove(cp, (char *)&(so[i]), l);
-                cp += l;
-        }
+	for (i = 0; i < 3; i++) {
+		l = SA_SIZE(&(so[i]));
+		memmove(cp, (char *)&(so[i]), l);
+		cp += l;
+	}
 
-        m_rtmsg.m_rtm.rtm_type = RTM_ADD;
-        m_rtmsg.m_rtm.rtm_flags = RTF_UP | RTF_GATEWAY | RTF_STATIC;
-        m_rtmsg.m_rtm.rtm_version = RTM_VERSION;
-        m_rtmsg.m_rtm.rtm_seq = 1;
-        m_rtmsg.m_rtm.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK;
-        m_rtmsg.m_rtm.rtm_msglen = l = cp - (char *)&m_rtmsg;
+	m_rtmsg.m_rtm.rtm_type = RTM_ADD;
+	m_rtmsg.m_rtm.rtm_flags = RTF_UP | RTF_GATEWAY | RTF_STATIC;
+	m_rtmsg.m_rtm.rtm_version = RTM_VERSION;
+	m_rtmsg.m_rtm.rtm_seq = 1;
+	m_rtmsg.m_rtm.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK;
+	m_rtmsg.m_rtm.rtm_msglen = l = cp - (char *)&m_rtmsg;
 
-        if ((sockfd = socket(PF_ROUTE, SOCK_RAW, 0)) < 0) {
-                printf("FAILED: socket(): %s", strerror(errno));
-                return;
-        }
+	if ((sockfd = socket(PF_ROUTE, SOCK_RAW, 0)) < 0) {
+		printf("FAILED: socket(): %s", strerror(errno));
+		return;
+	}
 
-        if (write(sockfd, (char *)&m_rtmsg, l) < 0)
-                printf("FAILED: writing to routing socket: %d\n", errno);
+	if (write(sockfd, (char *)&m_rtmsg, l) < 0)
+		printf("FAILED: writing to routing socket: %d\n", errno);
 
-        close(sockfd);
+	close(sockfd);
 }
 
 static void
@@ -419,18 +419,18 @@ static void
 loop_start_prog()
 {
 	char *argv[] = {NULL, NULL};
-        char default_prog[] = START_PROG;
-        char kenv_value[512];
+	char default_prog[] = START_PROG;
+	char kenv_value[512];
 	pid_t pid;
 	int status, ret;
 
 
 	for (;;) {
-                if (kenv(KENV_GET, "minit.start_prog", kenv_value,
-                         sizeof(kenv_value) -1) > 0)
-                        argv[0] = kenv_value;
-                 else
-                        argv[0] = default_prog;
+		if (kenv(KENV_GET, "minit.start_prog", kenv_value,
+		    sizeof(kenv_value) -1) > 0)
+			argv[0] = kenv_value;
+		else
+			argv[0] = default_prog;
 
 		printf("> loop_start_prog()\n\n%s\n\n", argv[0]);
 		if ((pid = fork()) == -1) {
@@ -441,18 +441,18 @@ loop_start_prog()
 
 		ret = waitpid(pid, &status, WEXITED | WSTOPPED);
 
-                setup_console();
-                kill_all();
+		setup_console();
+		kill_all();
 
-                if (ret == -1 && Reboot != 0) {/* sigterm or sigint received */
-                        return;
-                } else if (WEXITSTATUS(status) == SIGTERM) {
-                        Reboot = RB_POWEROFF;
-                        return;
-                } else if (WEXITSTATUS(status) == SIGINT) {
-                        Reboot = RB_AUTOBOOT;
-                        return;
-                }
+		if (ret == -1 && Reboot != 0) {/* sigterm or sigint received */
+			return;
+		} else if (WEXITSTATUS(status) == SIGTERM) {
+			Reboot = RB_POWEROFF;
+			return;
+		} else if (WEXITSTATUS(status) == SIGINT) {
+			Reboot = RB_AUTOBOOT;
+			return;
+		}
 	}
 }
 
@@ -460,16 +460,16 @@ static void
 kill_all()
 {
 	static const int death_sigs[2] = { SIGTERM, SIGKILL };
-        int i;
+	int i;
 
-        printf("> kill_all()\n");
-        for (i = 0; i < 2; i++) {
-                if (kill(-1, death_sigs[i]) == -1 && errno == ESRCH)
-                        break;
-                Alarm = 0;
-                alarm(KILL_GRACE_TIME);
-                do waitpid(-1, (int*)0, 0);
-                while (errno != ECHILD && Alarm == 0);
-        }
-        alarm(0);
+	printf("> kill_all()\n");
+	for (i = 0; i < 2; i++) {
+		if (kill(-1, death_sigs[i]) == -1 && errno == ESRCH)
+			break;
+		Alarm = 0;
+		alarm(KILL_GRACE_TIME);
+		do waitpid(-1, (int*)0, 0);
+		while (errno != ECHILD && Alarm == 0);
+	}
+	alarm(0);
 }
