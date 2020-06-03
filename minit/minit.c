@@ -37,7 +37,9 @@ static void setup_hostname();
 static void setup_network(void);
 static void ip4_config(const char* iface, const char* cidr);
 static void ip6_config(const char* iface, const char* cidr);
+static void route_add(struct sockaddr_storage *so);
 static void ip4_route(const char* dst, const char* gw);
+static void ip6_route(const char* dst, const char* gw);
 static void setup_signal_handlers();
 static void handle_signal(int sig);
 static void loop_start_prog();
@@ -202,6 +204,18 @@ setup_network(void)
 			ip4_route(kenv_value, ptr);
 		}
 	}
+
+	printf(">> ipv6 routes\n");
+
+	for (i = 0; i < MINIT_MAX_ROUTE; i++) {
+		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip6.route.%d", i);
+		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
+		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
+			*ptr = 0;
+			ptr++;
+			ip6_route(kenv_value, ptr);
+		}
+	}
 }
 
 static void
@@ -300,17 +314,54 @@ ip4_config(const char* iface, const char* cidr)
 }
 
 static void
+ip6_route(const char* dst, const char* gw)
+{
+	struct sockaddr_storage so[3];
+	int i;
+	int bits;
+	struct sockaddr_in6 *sin;
+	struct in6_addr *addr, *mask, *via;
+
+	printf(">>> ip6_route(\"%s\", \"%s\")\n", dst, gw);
+
+	memset(so, 0, sizeof(so));
+	for (i = 0; i < 3; i++) {
+		sin = (struct sockaddr_in6*)&so[i];
+		sin->sin6_family = AF_INET6;
+		sin->sin6_len = sizeof(struct sockaddr_in6);
+	}
+	addr = &(((struct sockaddr_in6*)&so[0])->sin6_addr);
+	via = &(((struct sockaddr_in6*)&so[1])->sin6_addr);
+	mask = &(((struct sockaddr_in6*)&so[2])->sin6_addr);
+
+	if (strcmp(dst, "default") != 0) {
+		if (inet_cidr_pton(AF_INET6, dst, addr, &bits)) {
+			printf("FAILED: invalid dst\n");
+			return;
+		}
+		if (bits < 0 || bits == 128)
+			memset(mask, 0xff, sizeof(struct in6_addr));
+		else {
+			u_char *cp;
+			memset(mask, 0x00, sizeof(struct in6_addr));
+			for (cp = (u_char *)mask; bits > 7; bits -= 8)
+				*cp++ = 0xff;
+			*cp = 0xff << (8 - bits);
+		}
+	}
+
+	if (inet_cidr_pton(AF_INET6, gw, via, &bits) || bits != -1) {
+		printf("FAILED: invalid gw\n");
+		return;
+	}
+
+	route_add(so);
+}
+
+static void
 ip4_route(const char* dst, const char* gw)
 {
 	struct sockaddr_storage so[3];
-	struct {
-		struct rt_msghdr m_rtm;
-		char   m_space[512];
-	} m_rtmsg;
-	char *cp = m_rtmsg.m_space;
-	int l;
-	int i;
-	int sockfd;
 
 	struct sockaddr *sa;
 	struct sockaddr_in *sin;
@@ -360,7 +411,19 @@ ip4_route(const char* dst, const char* gw)
 	if (bits) mask = 0xffffffff << (32 - bits);
 	sin->sin_addr.s_addr = htonl(mask);
 
-	memset(&m_rtmsg, 0, sizeof(m_rtmsg));
+	route_add(so);
+}
+
+static void
+route_add(struct sockaddr_storage *so)
+{
+	struct {
+		struct rt_msghdr m_rtm;
+		char   m_space[512];
+	} m_rtmsg;
+	char *cp = m_rtmsg.m_space;
+	int i, l;
+	int sockfd;
 
 	for (i = 0; i < 3; i++) {
 		l = SA_SIZE(&(so[i]));
@@ -376,7 +439,7 @@ ip4_route(const char* dst, const char* gw)
 	m_rtmsg.m_rtm.rtm_msglen = l = cp - (char *)&m_rtmsg;
 
 	if ((sockfd = socket(PF_ROUTE, SOCK_RAW, 0)) < 0) {
-		printf("FAILED: socket(): %s", strerror(errno));
+		printf("FAILED: socket(): %s\n", strerror(errno));
 		return;
 	}
 
