@@ -34,6 +34,7 @@ static void setup_devfs(void);
 static void setup_console(void);
 static void remount_root();
 static void setup_hostname();
+static int net_env_kv(const char* fmt, int i, char* first, char** second);
 static void setup_network(void);
 static void ip4_config(const char* iface, const char* cidr);
 static void ip6_config(const char* iface, const char* cidr);
@@ -157,70 +158,61 @@ setup_hostname()
 		sethostname((const char*)hn, (size_t)b);
 }
 
+static int
+net_env_kv(const char* fmt, int i, char* first, char** second)
+{
+	char kenv_key[256];
+
+	snprintf(kenv_key, sizeof(kenv_key) -1, fmt, i);
+	if (kenv(KENV_GET, kenv_key, first, 511)> 0 &&
+	    (*second = strchr(first, ' ')) != NULL) {
+		**second = 0;
+		(*second)++;
+		return 1;
+	}
+	return 0;
+}
+
 static void
 setup_network(void)
 {
-	char kenv_value[512];
-	char kenv_key[256];
-	int i, b;
-	char *ptr;
+	char first[512];
+	char *second = NULL;
+	int i;
 
 	printf("> setup_network()\n>> ipv4 interfaces\n");
 
 	ip4_config("lo0", "127.0.0.1/8");
 
-	for (i = 0; i < MINIT_MAX_NETIF; i++) {
-		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip4.iface.%d", i);
-		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
-		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
-			*ptr = 0;
-			ptr++;
-			ip4_config(kenv_value, ptr);
-		}
-	}
+	for (i = 0; i < MINIT_MAX_NETIF; i++)
+		if (net_env_kv("minit.ip4.iface.%d", i, first, &second))
+			ip4_config(first, second);
 
 	printf("> setup_network()\n>> ipv6 interfaces\n");
 
 	ip6_config("lo0", "::1/128");
 
-	for (i = 0; i < MINIT_MAX_NETIF; i++) {
-		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip6.iface.%d", i);
-		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
-		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
-			*ptr = 0;
-			ptr++;
-			ip6_config(kenv_value, ptr);
-		}
-	}
+	for (i = 0; i < MINIT_MAX_NETIF; i++)
+		if (net_env_kv("minit.ip6.iface.%d", i, first, &second))
+			ip6_config(first, second);
 
 	printf(">> ipv4 routes\n");
 
-	for (i = 0; i < MINIT_MAX_ROUTE; i++) {
-		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip4.route.%d", i);
-		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
-		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
-			*ptr = 0;
-			ptr++;
-			if (strcmp(kenv_value, "default") == 0)
-				ip4_route("0.0.0.0/0", ptr);
-			else ip4_route(kenv_value, ptr);
-
+	for (i = 0; i < MINIT_MAX_ROUTE; i++)
+		if (net_env_kv("minit.ip4.route.%d", i, first, &second)) {
+			if (strcmp(first, "default") == 0)
+				ip4_route("0.0.0.0/0", second);
+			else ip4_route(first, second);
 		}
-	}
 
 	printf(">> ipv6 routes\n");
 
-	for (i = 0; i < MINIT_MAX_ROUTE; i++) {
-		snprintf(kenv_key, sizeof(kenv_key) -1, "minit.ip6.route.%d", i);
-		b = kenv(KENV_GET, kenv_key, kenv_value, sizeof(kenv_value) -1);
-		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
-			*ptr = 0;
-			ptr++;
-			if (strcmp(kenv_value, "default") == 0)
-				ip6_route("::0/0", ptr);
-			else ip6_route(kenv_value, ptr);
+	for (i = 0; i < MINIT_MAX_ROUTE; i++)
+		if (net_env_kv("minit.ip6.route.%d", i, first, &second)) {
+			if (strcmp(first, "default") == 0)
+				ip6_route("::0/0", second);
+			else ip6_route(first, second);
 		}
-	}
 }
 
 static void
