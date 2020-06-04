@@ -201,7 +201,10 @@ setup_network(void)
 		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
 			*ptr = 0;
 			ptr++;
-			ip4_route(kenv_value, ptr);
+			if (strcmp(kenv_value, "default") == 0)
+				ip4_route("0.0.0.0/0", ptr);
+			else ip4_route(kenv_value, ptr);
+
 		}
 	}
 
@@ -214,6 +217,9 @@ setup_network(void)
 			*ptr = 0;
 			ptr++;
 			ip6_route(kenv_value, ptr);
+			if (strcmp(kenv_value, "default") == 0)
+				ip4_route("0.0.0.0/0", ptr);
+			else ip4_route(kenv_value, ptr);
 		}
 	}
 }
@@ -314,107 +320,6 @@ ip4_config(const char* iface, const char* cidr)
 }
 
 static void
-ip6_route(const char* dst, const char* gw)
-{
-	struct sockaddr_storage so[3];
-	int i;
-	int bits;
-	struct sockaddr_in6 *sin;
-	struct in6_addr *addr, *mask, *via;
-
-	printf(">>> ip6_route(\"%s\", \"%s\")\n", dst, gw);
-
-	memset(so, 0, sizeof(so));
-	for (i = 0; i < 3; i++) {
-		sin = (struct sockaddr_in6*)&so[i];
-		sin->sin6_family = AF_INET6;
-		sin->sin6_len = sizeof(struct sockaddr_in6);
-	}
-	addr = &(((struct sockaddr_in6*)&so[0])->sin6_addr);
-	via = &(((struct sockaddr_in6*)&so[1])->sin6_addr);
-	mask = &(((struct sockaddr_in6*)&so[2])->sin6_addr);
-
-	if (strcmp(dst, "default") != 0) {
-		if (inet_cidr_pton(AF_INET6, dst, addr, &bits)) {
-			printf("FAILED: invalid dst\n");
-			return;
-		}
-		if (bits < 0 || bits == 128)
-			memset(mask, 0xff, sizeof(struct in6_addr));
-		else {
-			u_char *cp;
-			memset(mask, 0x00, sizeof(struct in6_addr));
-			for (cp = (u_char *)mask; bits > 7; bits -= 8)
-				*cp++ = 0xff;
-			*cp = 0xff << (8 - bits);
-		}
-	}
-
-	if (inet_cidr_pton(AF_INET6, gw, via, &bits) || bits != -1) {
-		printf("FAILED: invalid gw\n");
-		return;
-	}
-
-	route_add(so);
-}
-
-static void
-ip4_route(const char* dst, const char* gw)
-{
-	struct sockaddr_storage so[3];
-
-	struct sockaddr *sa;
-	struct sockaddr_in *sin;
-	int bits;
-	u_long mask = 0;
-
-	printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
-
-	memset(so, 0, sizeof(so));
-
-	/* RTA_DST */
-	sa = (struct sockaddr*)&so[0];
-	sa->sa_family = AF_INET;
-	sa->sa_len = sizeof(struct sockaddr_in);
-	sin = (struct sockaddr_in *)(void *)sa;
-	if (strcmp(dst, "default") == 0) {
-		bits = 0;
-		sin->sin_addr.s_addr = 0;
-	} else {
-		bits = inet_net_pton(AF_INET, dst, &sin->sin_addr,
-				     sizeof(sin->sin_addr));
-		if (bits < 0) {
-			printf("FAILED: invalid dst\n");
-			return;
-		}
-		/* 0 is special */
-		if (sin->sin_addr.s_addr == 0 && bits == 32)
-			bits = 0;
-	}
-
-	/* RTA_GW */
-	sa = (struct sockaddr*)&so[1];
-	sa->sa_family = AF_INET;
-	sa->sa_len = sizeof(struct sockaddr_in);
-	sin = (struct sockaddr_in *)(void *)sa;
-	if (inet_net_pton(AF_INET, gw, &sin->sin_addr,
-			  sizeof(sin->sin_addr)) != 32) {
-		printf("FAILED: invalid gw\n");
-		return;
-	}
-
-	/* RTA_NETMASK */
-	sa = (struct sockaddr*)&so[2];
-	sa->sa_family = AF_INET;
-	sa->sa_len = sizeof(struct sockaddr_in);
-	sin = (struct sockaddr_in *)(void *)sa;
-	if (bits) mask = 0xffffffff << (32 - bits);
-	sin->sin_addr.s_addr = htonl(mask);
-
-	route_add(so);
-}
-
-static void
 route_add(struct sockaddr_storage *so)
 {
 	struct {
@@ -427,7 +332,7 @@ route_add(struct sockaddr_storage *so)
 
 	for (i = 0; i < 3; i++) {
 		l = SA_SIZE(&(so[i]));
-		memmove(cp, (char *)&(so[i]), l);
+		memmove(cp, (char *)&so[i], l);
 		cp += l;
 	}
 
@@ -447,6 +352,88 @@ route_add(struct sockaddr_storage *so)
 		printf("FAILED: writing to routing socket: %d\n", errno);
 
 	close(sockfd);
+}
+
+static void
+ip4_route(const char* dst, const char* gw)
+{
+	struct sockaddr_storage so[3];
+	struct sockaddr_in *sin;
+	struct in_addr *addr, *mask, *via;
+	int bits;
+	int i;
+
+	printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
+
+	memset(so, 0, sizeof(so));
+	for (i = 0; i < 3; i++) {
+		sin = (struct sockaddr_in*)&so[i];
+		sin->sin_family = AF_INET;
+		sin->sin_len = sizeof(struct sockaddr_in);
+	}
+	addr = &(((struct sockaddr_in*)&so[0])->sin_addr);
+	via = &(((struct sockaddr_in*)&so[1])->sin_addr);
+	mask = &(((struct sockaddr_in*)&so[2])->sin_addr);
+
+	if (inet_cidr_pton(AF_INET, dst, addr, &bits)) {
+		printf("FAILED: invalid dst\n");
+		return;
+	}
+
+	if (addr->s_addr != 0) bits = (bits == 0)?32:bits;
+	else bits = (bits == 32)?0:bits;
+
+	if (bits) mask->s_addr = htonl(0xffffffff << (32 - bits));
+
+	if (inet_cidr_pton(AF_INET, gw, via, &bits) || bits != 32) {
+		printf("FAILED: invalid gw\n");
+		return;
+	}
+
+	route_add(so);
+}
+
+static void
+ip6_route(const char* dst, const char* gw)
+{
+	struct sockaddr_storage so[3];
+	struct sockaddr_in6 *sin;
+	struct in6_addr *addr, *mask, *via;
+	int bits;
+	int i;
+	int addr_not_null = 0;
+	u_char *cp;
+
+	printf(">>> ip6_route(\"%s\", \"%s\")\n", dst, gw);
+
+	memset(so, 0, sizeof(so));
+	for (i = 0; i < 3; i++) {
+		sin = (struct sockaddr_in6*)&so[i];
+		sin->sin6_family = AF_INET6;
+		sin->sin6_len = sizeof(struct sockaddr_in6);
+	}
+	addr = &(((struct sockaddr_in6*)&so[0])->sin6_addr);
+	via = &(((struct sockaddr_in6*)&so[1])->sin6_addr);
+	mask = &(((struct sockaddr_in6*)&so[2])->sin6_addr);
+
+	if (inet_cidr_pton(AF_INET6, dst, addr, &bits)) {
+		printf("FAILED: invalid dst\n");
+		return;
+	}
+
+	for (i = 0; i < 16; i++) addr_not_null |= addr->s6_addr[i];
+	if (addr_not_null) bits = (bits <= 0)?128:bits;
+	else bits = (bits < 0)?0:bits;
+
+	for (cp = (u_char*)mask; bits > 7; bits -= 8) *cp++ = 0xff;
+	*cp = 0xff << (8 -bits);
+
+	if (inet_cidr_pton(AF_INET6, gw, via, &bits) || bits != -1) {
+		printf("FAILED: invalid gw\n");
+		return;
+	}
+
+	route_add(so);
 }
 
 static void
