@@ -227,18 +227,21 @@ setup_network(void)
 static void
 ip6_config(const char* iface, const char* cidr)
 {
-	int sockfd;
-	int bits;
 	struct in6_aliasreq ifra;
 	struct in6_addr *addr, *mask;
+	int sockfd;
+	int bits;
+	u_char *cp;
+
+	printf(">>> ip6_config(\"%s\", \"%s\")\n", iface, cidr);
 
 	memset(&ifra, 0, sizeof(ifra));
 
 	ifra.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
 	ifra.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
 	ifra.ifra_addr.sin6_family = AF_INET6;
-	ifra.ifra_addr.sin6_len = sizeof(struct sockaddr_in6);
 	ifra.ifra_prefixmask.sin6_family = AF_INET6;
+	ifra.ifra_addr.sin6_len = sizeof(struct sockaddr_in6);
 	ifra.ifra_prefixmask.sin6_len = sizeof(struct sockaddr_in6);
 
 	addr = &(ifra.ifra_addr.sin6_addr);
@@ -246,22 +249,14 @@ ip6_config(const char* iface, const char* cidr)
 
 	strncpy(ifra.ifra_name, iface, sizeof(ifra.ifra_name));
 
-	printf(">>> ip6_config(\"%s\", \"%s\")\n", iface, cidr);
-
 	if (inet_cidr_pton(AF_INET6, cidr, addr, &bits)) {
 		printf("FAILED: inet_cidr_pton(): %s\n", strerror(errno));
 		return;
 	}
 
-	if (bits <= 0 || bits == 128)
-		memset(mask, 0xff, sizeof(struct in6_addr));
-	else {
-		u_char *cp;
-		memset(mask, 0x00, sizeof(struct in6_addr));
-		for (cp = (u_char *)mask; bits > 7; bits -= 8)
-			*cp++ = 0xff;
-		*cp = 0xff << (8 - bits);
-	}
+	bits = (bits <= 0)?128:bits;
+	for (cp = (u_char *)mask; bits > 7; bits -= 8) *cp++ = 0xff;
+	*cp = 0xff << (8 - bits);
 
 	if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
 		printf("FAILED: socket(): %s\n", strerror(errno));
@@ -277,36 +272,31 @@ ip6_config(const char* iface, const char* cidr)
 static void
 ip4_config(const char* iface, const char* cidr)
 {
+	struct in_aliasreq ifra;
+	struct in_addr *addr, *mask;
 	int sockfd;
 	int bits;
-	u_long mask;
-	struct ifaliasreq ifra;
-	struct sockaddr_in *addrp, *maskp;
 
 	printf(">>> ip4_config(\"%s\", \"%s\")\n", iface, cidr);
 
-	memset(&ifra, 0, sizeof ifra);
-	strcpy(ifra.ifra_name, iface);
+	memset(&ifra, 0, sizeof(struct ifaliasreq));
 
+	ifra.ifra_addr.sin_family = AF_INET;
+	ifra.ifra_mask.sin_family = AF_INET;
+	ifra.ifra_addr.sin_len = sizeof(struct sockaddr_in);
+	ifra.ifra_mask.sin_len = sizeof(struct sockaddr_in);
 
-	addrp = (struct sockaddr_in *)&ifra.ifra_addr;
-	addrp->sin_family = AF_INET;
-	addrp->sin_len = sizeof(*addrp);
-	addrp->sin_port = 0;
+	addr = &(ifra.ifra_addr.sin_addr);
+	mask = &(ifra.ifra_mask.sin_addr);
 
-	maskp = (struct sockaddr_in *)&ifra.ifra_mask;
-	maskp->sin_family = AF_INET;
-	maskp->sin_len = sizeof(*maskp);
-	maskp->sin_port = 0;
+	strncpy(ifra.ifra_name, iface, sizeof(ifra.ifra_name));
 
-	bits = inet_net_pton(AF_INET, cidr, &addrp->sin_addr,
-			     sizeof(addrp->sin_addr));
-	if (bits < 0) {
-		printf("FAILED: inet_net_pton(): %s\n", strerror(errno));
+	if (inet_cidr_pton(AF_INET6, cidr, addr, &bits)) {
+		printf("FAILED: inet_cidr_pton(): %s\n", strerror(errno));
 		return;
 	}
-	mask = 0xffffffff << (32 - bits);
-	maskp->sin_addr.s_addr = htonl(mask);
+
+	if (bits) mask->s_addr = htonl(0xffffffff << (32 -bits));
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		printf("FAILED: socket(): %s\n", strerror(errno));
@@ -317,80 +307,6 @@ ip4_config(const char* iface, const char* cidr)
 		printf("FAILED: ioctl(): %s\n", strerror(errno));
 
 	close(sockfd);
-}
-
-static void
-route_add(struct sockaddr_storage *so)
-{
-	struct {
-		struct rt_msghdr m_rtm;
-		char   m_space[512];
-	} m_rtmsg;
-	char *cp = m_rtmsg.m_space;
-	int i, l;
-	int sockfd;
-
-	for (i = 0; i < 3; i++) {
-		l = SA_SIZE(&(so[i]));
-		memmove(cp, (char *)&so[i], l);
-		cp += l;
-	}
-
-	m_rtmsg.m_rtm.rtm_type = RTM_ADD;
-	m_rtmsg.m_rtm.rtm_flags = RTF_UP | RTF_GATEWAY | RTF_STATIC;
-	m_rtmsg.m_rtm.rtm_version = RTM_VERSION;
-	m_rtmsg.m_rtm.rtm_seq = 1;
-	m_rtmsg.m_rtm.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK;
-	m_rtmsg.m_rtm.rtm_msglen = l = cp - (char *)&m_rtmsg;
-
-	if ((sockfd = socket(PF_ROUTE, SOCK_RAW, 0)) < 0) {
-		printf("FAILED: socket(): %s\n", strerror(errno));
-		return;
-	}
-
-	if (write(sockfd, (char *)&m_rtmsg, l) < 0)
-		printf("FAILED: writing to routing socket: %d\n", errno);
-
-	close(sockfd);
-}
-
-static void
-ip4_route(const char* dst, const char* gw)
-{
-	struct sockaddr_storage so[3];
-	struct sockaddr_in *sin;
-	struct in_addr *addr, *mask, *via;
-	int bits;
-	int i;
-
-	printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
-
-	memset(so, 0, sizeof(so));
-	for (i = 0; i < 3; i++) {
-		sin = (struct sockaddr_in*)&so[i];
-		sin->sin_family = AF_INET;
-		sin->sin_len = sizeof(struct sockaddr_in);
-	}
-	addr = &(((struct sockaddr_in*)&so[0])->sin_addr);
-	via = &(((struct sockaddr_in*)&so[1])->sin_addr);
-	mask = &(((struct sockaddr_in*)&so[2])->sin_addr);
-
-	if (inet_cidr_pton(AF_INET, dst, addr, &bits)) {
-		printf("FAILED: invalid dst\n");
-		return;
-	}
-
-	if (addr->s_addr != 0) bits = (bits == 0)?32:bits;
-	else bits = (bits == 32)?0:bits;
-
-	if (bits) mask->s_addr = htonl(0xffffffff << (32 - bits));
-
-	if (inet_cidr_pton(AF_INET, gw, via, &bits) || bits != 32) {
-		printf("FAILED: invalid gw\n");
-		return;
-	}
-
-	route_add(so);
 }
 
 static void
@@ -434,6 +350,80 @@ ip6_route(const char* dst, const char* gw)
 	}
 
 	route_add(so);
+}
+
+static void
+ip4_route(const char* dst, const char* gw)
+{
+	struct sockaddr_storage so[3];
+	struct sockaddr_in *sin;
+	struct in_addr *addr, *mask, *via;
+	int bits;
+	int i;
+
+	printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
+
+	memset(so, 0, sizeof(so));
+	for (i = 0; i < 3; i++) {
+		sin = (struct sockaddr_in*)&so[i];
+		sin->sin_family = AF_INET;
+		sin->sin_len = sizeof(struct sockaddr_in);
+	}
+	addr = &(((struct sockaddr_in*)&so[0])->sin_addr);
+	via = &(((struct sockaddr_in*)&so[1])->sin_addr);
+	mask = &(((struct sockaddr_in*)&so[2])->sin_addr);
+
+	if (inet_cidr_pton(AF_INET, dst, addr, &bits)) {
+		printf("FAILED: invalid dst\n");
+		return;
+	}
+
+	if (addr->s_addr != 0) bits = (bits == 0)?32:bits;
+	else bits = (bits == 32)?0:bits;
+
+	if (bits) mask->s_addr = htonl(0xffffffff << (32 - bits));
+
+	if (inet_cidr_pton(AF_INET, gw, via, &bits) || bits != 32) {
+		printf("FAILED: invalid gw\n");
+		return;
+	}
+
+	route_add(so);
+}
+
+static void
+route_add(struct sockaddr_storage *so)
+{
+	struct {
+		struct rt_msghdr m_rtm;
+		char   m_space[512];
+	} m_rtmsg;
+	char *cp = m_rtmsg.m_space;
+	int i, l;
+	int sockfd;
+
+	for (i = 0; i < 3; i++) {
+		l = SA_SIZE(&(so[i]));
+		memmove(cp, (char *)&so[i], l);
+		cp += l;
+	}
+
+	m_rtmsg.m_rtm.rtm_type = RTM_ADD;
+	m_rtmsg.m_rtm.rtm_flags = RTF_UP | RTF_GATEWAY | RTF_STATIC;
+	m_rtmsg.m_rtm.rtm_version = RTM_VERSION;
+	m_rtmsg.m_rtm.rtm_seq = 1;
+	m_rtmsg.m_rtm.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK;
+	m_rtmsg.m_rtm.rtm_msglen = l = cp - (char *)&m_rtmsg;
+
+	if ((sockfd = socket(PF_ROUTE, SOCK_RAW, 0)) < 0) {
+		printf("FAILED: socket(): %s\n", strerror(errno));
+		return;
+	}
+
+	if (write(sockfd, (char *)&m_rtmsg, l) < 0)
+		printf("FAILED: writing to routing socket: %d\n", errno);
+
+	close(sockfd);
 }
 
 static void
