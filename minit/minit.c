@@ -216,10 +216,9 @@ setup_network(void)
 		if (b > 0 && (ptr = strchr(kenv_value, ' ')) != NULL) {
 			*ptr = 0;
 			ptr++;
-			ip6_route(kenv_value, ptr);
 			if (strcmp(kenv_value, "default") == 0)
-				ip4_route("0.0.0.0/0", ptr);
-			else ip4_route(kenv_value, ptr);
+				ip6_route("::0/0", ptr);
+			else ip6_route(kenv_value, ptr);
 		}
 	}
 }
