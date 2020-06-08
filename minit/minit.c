@@ -74,10 +74,10 @@ setup_devfs(void)
 	char _fspath[] = "fspath";
 	char _dev[] = "/dev";
 
-	iov[0].iov_base = _fstype; iov[0].iov_len = sizeof(_fstype);
-	iov[1].iov_base = _devfs; iov[1].iov_len = sizeof(_devfs);
-	iov[2].iov_base = _fspath; iov[2].iov_len = sizeof(_fspath);
-	iov[3].iov_base = _dev; iov[3].iov_len = sizeof(_dev);
+	iov[0].iov_base = _fstype; iov[0].iov_len = sizeof _fstype;
+	iov[1].iov_base = _devfs; iov[1].iov_len = sizeof _devfs;
+	iov[2].iov_base = _fspath; iov[2].iov_len = sizeof _fspath;
+	iov[3].iov_base = _dev; iov[3].iov_len = sizeof _dev;
 	nmount(iov, 4, 0);
 }
 
@@ -120,29 +120,29 @@ remount_root()
 
 	printf ("> remount_root()\n");
 
-	b = kenv(KENV_GET, "vfs.root.mountfrom",
-		 kenv_value, sizeof(kenv_value) -1);
+	b = kenv(KENV_GET, "vfs.root.mountfrom", kenv_value,
+	    (sizeof kenv_value) -1);
 	if (b < 4 || strncmp(kenv_value, "ufs:", 4) != 0) {
 		printf("FAILED: kenv\n");
 		return;
 	}
 	dev = kenv_value + 4;
 
-	iov[0].iov_base = _sync; iov[0].iov_len = sizeof(_sync);
+	iov[0].iov_base = _sync; iov[0].iov_len = sizeof _sync;
 	iov[1].iov_base = NULL; iov[1].iov_len = 0;
-	iov[2].iov_base = _noatime; iov[2].iov_len = sizeof(_noatime);
+	iov[2].iov_base = _noatime; iov[2].iov_len = sizeof _noatime;
 	iov[3].iov_base = NULL; iov[3].iov_len = 0;
-	iov[4].iov_base = _rw; iov[4].iov_len = sizeof(_rw);
+	iov[4].iov_base = _rw; iov[4].iov_len = sizeof _rw;
 	iov[5].iov_base = NULL; iov[5].iov_len = 0;
-	iov[6].iov_base = _noro; iov[6].iov_len = sizeof(_noro);
+	iov[6].iov_base = _noro; iov[6].iov_len = sizeof _noro;
 	iov[7].iov_base = NULL; iov[7].iov_len = 0;
-	iov[8].iov_base = _update; iov[8].iov_len = sizeof(_update);
+	iov[8].iov_base = _update; iov[8].iov_len = sizeof _update;
 	iov[9].iov_base = NULL; iov[9].iov_len = 0;
-	iov[10].iov_base = _fstype; iov[10].iov_len = sizeof(_fstype);
-	iov[11].iov_base = _ufs; iov[11].iov_len = sizeof(_ufs);
-	iov[12].iov_base = _fspath; iov[12].iov_len = sizeof(_fspath);
-	iov[13].iov_base = _slash; iov[13].iov_len = sizeof(_slash);
-	iov[14].iov_base = _from; iov[14].iov_len = sizeof(_from);
+	iov[10].iov_base = _fstype; iov[10].iov_len = sizeof _fstype;
+	iov[11].iov_base = _ufs; iov[11].iov_len = sizeof _ufs;
+	iov[12].iov_base = _fspath; iov[12].iov_len = sizeof _fspath;
+	iov[13].iov_base = _slash; iov[13].iov_len = sizeof _slash;
+	iov[14].iov_base = _from; iov[14].iov_len = sizeof _from;
 	iov[15].iov_base = dev; iov[15].iov_len = strlen(dev) +1;
 
 	if(nmount(iov, 16, 0) != 0)
@@ -154,7 +154,7 @@ setup_hostname()
 {
 	char hn[256];
 	int b;
-	if ((b = kenv(KENV_GET, "minit.hostname", hn, sizeof(hn) -1)) > 0)
+	if ((b = kenv(KENV_GET, "minit.hostname", hn, (sizeof hn) -1)) > 0)
 		sethostname((const char*)hn, (size_t)b);
 }
 
@@ -163,7 +163,7 @@ net_env_kv(const char* fmt, int i, char* first, char** second)
 {
 	char kenv_key[256];
 
-	snprintf(kenv_key, sizeof(kenv_key) -1, fmt, i);
+	snprintf(kenv_key, (sizeof kenv_key) -1, fmt, i);
 	if (kenv(KENV_GET, kenv_key, first, 511)> 0 &&
 	    (*second = strchr(first, ' ')) != NULL) {
 		**second = 0;
@@ -226,19 +226,19 @@ ip6_config(const char* iface, const char* cidr)
 
 	printf(">>> ip6_config(\"%s\", \"%s\")\n", iface, cidr);
 
-	memset(&ifra, 0, sizeof(ifra));
+	memset(&ifra, 0, sizeof ifra);
 
 	ifra.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME;
 	ifra.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
 	ifra.ifra_addr.sin6_family = AF_INET6;
 	ifra.ifra_prefixmask.sin6_family = AF_INET6;
-	ifra.ifra_addr.sin6_len = sizeof(struct sockaddr_in6);
-	ifra.ifra_prefixmask.sin6_len = sizeof(struct sockaddr_in6);
+	ifra.ifra_addr.sin6_len = sizeof (struct sockaddr_in6);
+	ifra.ifra_prefixmask.sin6_len = sizeof (struct sockaddr_in6);
 
 	addr = &(ifra.ifra_addr.sin6_addr);
 	mask = &(ifra.ifra_prefixmask.sin6_addr);
 
-	strncpy(ifra.ifra_name, iface, sizeof(ifra.ifra_name));
+	strncpy(ifra.ifra_name, iface, sizeof ifra.ifra_name);
 
 	if (inet_cidr_pton(AF_INET6, cidr, addr, &bits)) {
 		printf("FAILED: inet_cidr_pton(): %s\n", strerror(errno));
@@ -270,19 +270,19 @@ ip4_config(const char* iface, const char* cidr)
 
 	printf(">>> ip4_config(\"%s\", \"%s\")\n", iface, cidr);
 
-	memset(&ifra, 0, sizeof(struct ifaliasreq));
+	memset(&ifra, 0, sizeof ifra);
 
 	ifra.ifra_addr.sin_family = AF_INET;
 	ifra.ifra_mask.sin_family = AF_INET;
-	ifra.ifra_addr.sin_len = sizeof(struct sockaddr_in);
-	ifra.ifra_mask.sin_len = sizeof(struct sockaddr_in);
+	ifra.ifra_addr.sin_len = sizeof (struct sockaddr_in);
+	ifra.ifra_mask.sin_len = sizeof (struct sockaddr_in);
 
 	addr = &(ifra.ifra_addr.sin_addr);
 	mask = &(ifra.ifra_mask.sin_addr);
 
-	strncpy(ifra.ifra_name, iface, sizeof(ifra.ifra_name));
+	strncpy(ifra.ifra_name, iface, sizeof ifra.ifra_name);
 
-	if (inet_cidr_pton(AF_INET6, cidr, addr, &bits)) {
+	if (inet_cidr_pton(AF_INET, cidr, addr, &bits)) {
 		printf("FAILED: inet_cidr_pton(): %s\n", strerror(errno));
 		return;
 	}
@@ -313,11 +313,11 @@ ip6_route(const char* dst, const char* gw)
 
 	printf(">>> ip6_route(\"%s\", \"%s\")\n", dst, gw);
 
-	memset(so, 0, sizeof(so));
+	memset(so, 0, sizeof so);
 	for (i = 0; i < 3; i++) {
 		sin = (struct sockaddr_in6*)&so[i];
 		sin->sin6_family = AF_INET6;
-		sin->sin6_len = sizeof(struct sockaddr_in6);
+		sin->sin6_len = sizeof (struct sockaddr_in6);
 	}
 	addr = &(((struct sockaddr_in6*)&so[0])->sin6_addr);
 	via = &(((struct sockaddr_in6*)&so[1])->sin6_addr);
@@ -354,11 +354,11 @@ ip4_route(const char* dst, const char* gw)
 
 	printf(">>> ip4_route(\"%s\", \"%s\")\n", dst, gw);
 
-	memset(so, 0, sizeof(so));
+	memset(so, 0, sizeof so);
 	for (i = 0; i < 3; i++) {
 		sin = (struct sockaddr_in*)&so[i];
 		sin->sin_family = AF_INET;
-		sin->sin_len = sizeof(struct sockaddr_in);
+		sin->sin_len = sizeof (struct sockaddr_in);
 	}
 	addr = &(((struct sockaddr_in*)&so[0])->sin_addr);
 	via = &(((struct sockaddr_in*)&so[1])->sin_addr);
@@ -458,7 +458,7 @@ loop_start_prog()
 
 	for (;;) {
 		if (kenv(KENV_GET, "minit.start_prog", kenv_value,
-		    sizeof(kenv_value) -1) > 0)
+		    (sizeof kenv_value) -1) > 0)
 			argv[0] = kenv_value;
 		else
 			argv[0] = default_prog;
