@@ -65,7 +65,9 @@ if [ -f "$_tar_done" ] ; then
 else
     mkdir -p "$install_dir"
     truncate -s32M "$install_img"
-    mdmfs -S -F "$install_img" md23 "$install_dir"
+    md=$(mdconfig -a -t vnode -f "$install_img")
+    newfs -n /dev/"$md"
+    mount -o noatime /dev/"$md" "$install_dir"
     mtree -deU -f "$enode_dist" -p "$install_dir"
 
     # install kernel
@@ -95,7 +97,7 @@ else
         boot var dev etc bin sbin lib libexec sbin usr root
 
     umount "$install_dir"
-    mdconfig -du 23
+    mdconfig -du "$md"
     rm -rf "$install_img"
     touch "$_tar_done"
 fi
