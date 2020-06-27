@@ -49,6 +49,7 @@ device		pci
 
 # Pseudo devices.
 device		loop			# Network loopback
+device		random			# Entropy device
 device		rdrand_rng		# Intel Bull Mountain RNG
 device		ether			# Ethernet support
 
