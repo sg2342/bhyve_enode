@@ -188,7 +188,7 @@ setup_network(void)
 		if (net_env_kv("minit.ip4.iface.%d", i, first, &second))
 			ip4_config(first, second);
 
-	printf("> setup_network()\n>> ipv6 interfaces\n");
+	printf(">> ipv6 interfaces\n");
 
 	ip6_config("lo0", "::1/128");
 
