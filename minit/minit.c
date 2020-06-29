@@ -34,22 +34,23 @@ static void setup_devfs(void);
 static void setup_console(void);
 static void remount_root();
 static void setup_hostname();
-static int net_env_kv(const char* fmt, int i, char* first, char** second);
+static int net_env_kv(const char *fmt, int i, char *first, char **second);
 static void setup_network(void);
-static void ip4_config(const char* iface, const char* cidr);
-static void ip6_config(const char* iface, const char* cidr);
+static void ip4_config(const char *iface, const char *cidr);
+static void ip6_config(const char *iface, const char *cidr);
 static void route_add(struct sockaddr_storage *so);
-static void ip4_route(const char* dst, const char* gw);
-static void ip6_route(const char* dst, const char* gw);
+static void ip4_route(const char *dst, const char *gw);
+static void ip6_route(const char *dst, const char *gw);
 static void setup_signal_handlers();
 static void handle_signal(int sig);
 static void loop_start_prog();
 static void kill_all();
 
 int
-main(int argc __unused, char** argv __unused)
+main(int argc __unused, char **argv __unused)
 {
-	if (getpid() != 1) return 1; /* no. */
+	if (getpid() != 1)
+		return 1; /* no. */
 
 	setsid();
 	setlogin("root");
@@ -74,10 +75,14 @@ setup_devfs(void)
 	char _fspath[] = "fspath";
 	char _dev[] = "/dev";
 
-	iov[0].iov_base = _fstype; iov[0].iov_len = sizeof _fstype;
-	iov[1].iov_base = _devfs; iov[1].iov_len = sizeof _devfs;
-	iov[2].iov_base = _fspath; iov[2].iov_len = sizeof _fspath;
-	iov[3].iov_base = _dev; iov[3].iov_len = sizeof _dev;
+	iov[0].iov_base = _fstype;
+	iov[0].iov_len = sizeof _fstype;
+	iov[1].iov_base = _devfs;
+	iov[1].iov_len = sizeof _devfs;
+	iov[2].iov_base = _fspath;
+	iov[2].iov_len = sizeof _fspath;
+	iov[3].iov_base = _dev;
+	iov[3].iov_len = sizeof _dev;
 	nmount(iov, 4, 0);
 }
 
@@ -96,7 +101,7 @@ setup_console(void)
 	dup2(fd, 2);
 	ioctl(fd, TIOCSCTTY, (char *)0);
 	ioctl(fd, TIOCSPGRP, &pgrp);
-	printf ("> setup_console()\n");
+	printf("> setup_console()\n");
 }
 
 static void
@@ -118,34 +123,50 @@ remount_root()
 	char _slash[] = "/";
 	char _from[] = "from";
 
-	printf ("> remount_root()\n");
+	printf("> remount_root()\n");
 
 	b = kenv(KENV_GET, "vfs.root.mountfrom", kenv_value,
-	    (sizeof kenv_value) -1);
+	    (sizeof kenv_value) - 1);
 	if (b < 4 || strncmp(kenv_value, "ufs:", 4) != 0) {
 		printf("FAILED: kenv\n");
 		return;
 	}
 	dev = kenv_value + 4;
 
-	iov[0].iov_base = _sync; iov[0].iov_len = sizeof _sync;
-	iov[1].iov_base = NULL; iov[1].iov_len = 0;
-	iov[2].iov_base = _noatime; iov[2].iov_len = sizeof _noatime;
-	iov[3].iov_base = NULL; iov[3].iov_len = 0;
-	iov[4].iov_base = _rw; iov[4].iov_len = sizeof _rw;
-	iov[5].iov_base = NULL; iov[5].iov_len = 0;
-	iov[6].iov_base = _noro; iov[6].iov_len = sizeof _noro;
-	iov[7].iov_base = NULL; iov[7].iov_len = 0;
-	iov[8].iov_base = _update; iov[8].iov_len = sizeof _update;
-	iov[9].iov_base = NULL; iov[9].iov_len = 0;
-	iov[10].iov_base = _fstype; iov[10].iov_len = sizeof _fstype;
-	iov[11].iov_base = _ufs; iov[11].iov_len = sizeof _ufs;
-	iov[12].iov_base = _fspath; iov[12].iov_len = sizeof _fspath;
-	iov[13].iov_base = _slash; iov[13].iov_len = sizeof _slash;
-	iov[14].iov_base = _from; iov[14].iov_len = sizeof _from;
-	iov[15].iov_base = dev; iov[15].iov_len = strlen(dev) +1;
+	iov[0].iov_base = _sync;
+	iov[0].iov_len = sizeof _sync;
+	iov[1].iov_base = NULL;
+	iov[1].iov_len = 0;
+	iov[2].iov_base = _noatime;
+	iov[2].iov_len = sizeof _noatime;
+	iov[3].iov_base = NULL;
+	iov[3].iov_len = 0;
+	iov[4].iov_base = _rw;
+	iov[4].iov_len = sizeof _rw;
+	iov[5].iov_base = NULL;
+	iov[5].iov_len = 0;
+	iov[6].iov_base = _noro;
+	iov[6].iov_len = sizeof _noro;
+	iov[7].iov_base = NULL;
+	iov[7].iov_len = 0;
+	iov[8].iov_base = _update;
+	iov[8].iov_len = sizeof _update;
+	iov[9].iov_base = NULL;
+	iov[9].iov_len = 0;
+	iov[10].iov_base = _fstype;
+	iov[10].iov_len = sizeof _fstype;
+	iov[11].iov_base = _ufs;
+	iov[11].iov_len = sizeof _ufs;
+	iov[12].iov_base = _fspath;
+	iov[12].iov_len = sizeof _fspath;
+	iov[13].iov_base = _slash;
+	iov[13].iov_len = sizeof _slash;
+	iov[14].iov_base = _from;
+	iov[14].iov_len = sizeof _from;
+	iov[15].iov_base = dev;
+	iov[15].iov_len = strlen(dev) + 1;
 
-	if(nmount(iov, 16, 0) != 0)
+	if (nmount(iov, 16, 0) != 0)
 		printf("FAILED: nmount (%s)\n", strerror(errno));
 }
 
@@ -154,17 +175,17 @@ setup_hostname()
 {
 	char hn[256];
 	int b;
-	if ((b = kenv(KENV_GET, "minit.hostname", hn, (sizeof hn) -1)) > 0)
-		sethostname((const char*)hn, (size_t)b);
+	if ((b = kenv(KENV_GET, "minit.hostname", hn, (sizeof hn) - 1)) > 0)
+		sethostname((const char *)hn, (size_t)b);
 }
 
 static int
-net_env_kv(const char* fmt, int i, char* first, char** second)
+net_env_kv(const char *fmt, int i, char *first, char **second)
 {
 	char kenv_key[256];
 
-	snprintf(kenv_key, (sizeof kenv_key) -1, fmt, i);
-	if (kenv(KENV_GET, kenv_key, first, 511)> 0 &&
+	snprintf(kenv_key, (sizeof kenv_key) - 1, fmt, i);
+	if (kenv(KENV_GET, kenv_key, first, 511) > 0 &&
 	    (*second = strchr(first, ' ')) != NULL) {
 		**second = 0;
 		(*second)++;
@@ -202,7 +223,8 @@ setup_network(void)
 		if (net_env_kv("minit.ip4.route.%d", i, first, &second)) {
 			if (strcmp(first, "default") == 0)
 				ip4_route("0.0.0.0/0", second);
-			else ip4_route(first, second);
+			else
+				ip4_route(first, second);
 		}
 
 	printf(">> ipv6 routes\n");
@@ -211,12 +233,13 @@ setup_network(void)
 		if (net_env_kv("minit.ip6.route.%d", i, first, &second)) {
 			if (strcmp(first, "default") == 0)
 				ip6_route("::0/0", second);
-			else ip6_route(first, second);
+			else
+				ip6_route(first, second);
 		}
 }
 
 static void
-ip6_config(const char* iface, const char* cidr)
+ip6_config(const char *iface, const char *cidr)
 {
 	struct in6_aliasreq ifra;
 	struct in6_addr *addr, *mask;
@@ -232,8 +255,8 @@ ip6_config(const char* iface, const char* cidr)
 	ifra.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME;
 	ifra.ifra_addr.sin6_family = AF_INET6;
 	ifra.ifra_prefixmask.sin6_family = AF_INET6;
-	ifra.ifra_addr.sin6_len = sizeof (struct sockaddr_in6);
-	ifra.ifra_prefixmask.sin6_len = sizeof (struct sockaddr_in6);
+	ifra.ifra_addr.sin6_len = sizeof(struct sockaddr_in6);
+	ifra.ifra_prefixmask.sin6_len = sizeof(struct sockaddr_in6);
 
 	addr = &(ifra.ifra_addr.sin6_addr);
 	mask = &(ifra.ifra_prefixmask.sin6_addr);
@@ -245,8 +268,9 @@ ip6_config(const char* iface, const char* cidr)
 		return;
 	}
 
-	bits = (bits <= 0)?128:bits;
-	for (cp = (u_char *)mask; bits > 7; bits -= 8) *cp++ = 0xff;
+	bits = (bits <= 0) ? 128 : bits;
+	for (cp = (u_char *)mask; bits > 7; bits -= 8)
+		*cp++ = 0xff;
 	*cp = 0xff << (8 - bits);
 
 	if ((sockfd = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
@@ -261,7 +285,7 @@ ip6_config(const char* iface, const char* cidr)
 }
 
 static void
-ip4_config(const char* iface, const char* cidr)
+ip4_config(const char *iface, const char *cidr)
 {
 	struct in_aliasreq ifra;
 	struct in_addr *addr, *mask;
@@ -274,8 +298,8 @@ ip4_config(const char* iface, const char* cidr)
 
 	ifra.ifra_addr.sin_family = AF_INET;
 	ifra.ifra_mask.sin_family = AF_INET;
-	ifra.ifra_addr.sin_len = sizeof (struct sockaddr_in);
-	ifra.ifra_mask.sin_len = sizeof (struct sockaddr_in);
+	ifra.ifra_addr.sin_len = sizeof(struct sockaddr_in);
+	ifra.ifra_mask.sin_len = sizeof(struct sockaddr_in);
 
 	addr = &(ifra.ifra_addr.sin_addr);
 	mask = &(ifra.ifra_mask.sin_addr);
@@ -287,7 +311,8 @@ ip4_config(const char* iface, const char* cidr)
 		return;
 	}
 
-	if (bits) mask->s_addr = htonl(0xffffffff << (32 -bits));
+	if (bits)
+		mask->s_addr = htonl(0xffffffff << (32 - bits));
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		printf("FAILED: socket(): %s\n", strerror(errno));
@@ -301,7 +326,7 @@ ip4_config(const char* iface, const char* cidr)
 }
 
 static void
-ip6_route(const char* dst, const char* gw)
+ip6_route(const char *dst, const char *gw)
 {
 	struct sockaddr_storage so[3];
 	struct sockaddr_in6 *sin;
@@ -315,25 +340,29 @@ ip6_route(const char* dst, const char* gw)
 
 	memset(so, 0, sizeof so);
 	for (i = 0; i < 3; i++) {
-		sin = (struct sockaddr_in6*)&so[i];
+		sin = (struct sockaddr_in6 *)&so[i];
 		sin->sin6_family = AF_INET6;
-		sin->sin6_len = sizeof (struct sockaddr_in6);
+		sin->sin6_len = sizeof(struct sockaddr_in6);
 	}
-	addr = &(((struct sockaddr_in6*)&so[0])->sin6_addr);
-	via = &(((struct sockaddr_in6*)&so[1])->sin6_addr);
-	mask = &(((struct sockaddr_in6*)&so[2])->sin6_addr);
+	addr = &(((struct sockaddr_in6 *)&so[0])->sin6_addr);
+	via = &(((struct sockaddr_in6 *)&so[1])->sin6_addr);
+	mask = &(((struct sockaddr_in6 *)&so[2])->sin6_addr);
 
 	if (inet_cidr_pton(AF_INET6, dst, addr, &bits)) {
 		printf("FAILED: invalid dst\n");
 		return;
 	}
 
-	for (i = 0; i < 16; i++) addr_not_null |= addr->s6_addr[i];
-	if (addr_not_null) bits = (bits <= 0)?128:bits;
-	else bits = (bits < 0)?0:bits;
+	for (i = 0; i < 16; i++)
+		addr_not_null |= addr->s6_addr[i];
+	if (addr_not_null)
+		bits = (bits <= 0) ? 128 : bits;
+	else
+		bits = (bits < 0) ? 0 : bits;
 
-	for (cp = (u_char*)mask; bits > 7; bits -= 8) *cp++ = 0xff;
-	*cp = 0xff << (8 -bits);
+	for (cp = (u_char *)mask; bits > 7; bits -= 8)
+		*cp++ = 0xff;
+	*cp = 0xff << (8 - bits);
 
 	if (inet_cidr_pton(AF_INET6, gw, via, &bits) || bits != -1) {
 		printf("FAILED: invalid gw\n");
@@ -344,7 +373,7 @@ ip6_route(const char* dst, const char* gw)
 }
 
 static void
-ip4_route(const char* dst, const char* gw)
+ip4_route(const char *dst, const char *gw)
 {
 	struct sockaddr_storage so[3];
 	struct sockaddr_in *sin;
@@ -356,23 +385,26 @@ ip4_route(const char* dst, const char* gw)
 
 	memset(so, 0, sizeof so);
 	for (i = 0; i < 3; i++) {
-		sin = (struct sockaddr_in*)&so[i];
+		sin = (struct sockaddr_in *)&so[i];
 		sin->sin_family = AF_INET;
-		sin->sin_len = sizeof (struct sockaddr_in);
+		sin->sin_len = sizeof(struct sockaddr_in);
 	}
-	addr = &(((struct sockaddr_in*)&so[0])->sin_addr);
-	via = &(((struct sockaddr_in*)&so[1])->sin_addr);
-	mask = &(((struct sockaddr_in*)&so[2])->sin_addr);
+	addr = &(((struct sockaddr_in *)&so[0])->sin_addr);
+	via = &(((struct sockaddr_in *)&so[1])->sin_addr);
+	mask = &(((struct sockaddr_in *)&so[2])->sin_addr);
 
 	if (inet_cidr_pton(AF_INET, dst, addr, &bits)) {
 		printf("FAILED: invalid dst\n");
 		return;
 	}
 
-	if (addr->s_addr != 0) bits = (bits == 0)?32:bits;
-	else bits = (bits == 32)?0:bits;
+	if (addr->s_addr != 0)
+		bits = (bits == 0) ? 32 : bits;
+	else
+		bits = (bits == 32) ? 0 : bits;
 
-	if (bits) mask->s_addr = htonl(0xffffffff << (32 - bits));
+	if (bits)
+		mask->s_addr = htonl(0xffffffff << (32 - bits));
 
 	if (inet_cidr_pton(AF_INET, gw, via, &bits) || bits != 32) {
 		printf("FAILED: invalid gw\n");
@@ -387,7 +419,7 @@ route_add(struct sockaddr_storage *so)
 {
 	struct {
 		struct rt_msghdr m_rtm;
-		char   m_space[512];
+		char m_space[512];
 	} m_rtmsg;
 	char *cp = m_rtmsg.m_space;
 	int i, l;
@@ -440,25 +472,30 @@ static void
 handle_signal(int sig)
 {
 	switch (sig) {
-	case SIGTERM: Reboot = RB_POWEROFF; break;
-	case SIGINT: Reboot = RB_AUTOBOOT; break;
-	case SIGALRM: Alarm = 1; break;
+	case SIGTERM:
+		Reboot = RB_POWEROFF;
+		break;
+	case SIGINT:
+		Reboot = RB_AUTOBOOT;
+		break;
+	case SIGALRM:
+		Alarm = 1;
+		break;
 	}
 }
 
 static void
 loop_start_prog()
 {
-	char *argv[] = {NULL, NULL};
+	char *argv[] = { NULL, NULL };
 	char default_prog[] = START_PROG;
 	char kenv_value[512];
 	pid_t pid;
 	int status, ret;
 
-
 	for (;;) {
 		if (kenv(KENV_GET, "minit.start_prog", kenv_value,
-		    (sizeof kenv_value) -1) > 0)
+			(sizeof kenv_value) - 1) > 0)
 			argv[0] = kenv_value;
 		else
 			argv[0] = default_prog;
@@ -468,14 +505,15 @@ loop_start_prog()
 			printf("FAILED: fork(): %s", strerror(errno));
 			return;
 		}
-		if (pid == 0) execv(argv[0], argv);
+		if (pid == 0)
+			execv(argv[0], argv);
 
 		ret = waitpid(pid, &status, WEXITED | WSTOPPED);
 
 		setup_console();
 		kill_all();
 
-		if (ret == -1 && Reboot != 0) {/* sigterm or sigint received */
+		if (ret == -1 && Reboot != 0) { /* sigterm or sigint received */
 			return;
 		} else if (WEXITSTATUS(status) == SIGTERM) {
 			Reboot = RB_POWEROFF;
@@ -499,7 +537,8 @@ kill_all()
 			break;
 		Alarm = 0;
 		alarm(KILL_GRACE_TIME);
-		do waitpid(-1, (int*)0, 0);
+		do
+			waitpid(-1, (int *)0, 0);
 		while (errno != ECHILD && Alarm == 0);
 	}
 	alarm(0);
