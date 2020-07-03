@@ -40,11 +40,15 @@ kldload filemon || true
 
 #################################################################################
 
-case $(grep define\ __FreeBSD_version /usr/src/sys/sys/param.h|cut -w -f 3) in
+param_h=/usr/src/sys/sys/param.h
+
+case $(grep define\ __FreeBSD_version $param_h|cut -w -f 3) in
      12*) src_version=12 ;;
      13*) src_version=13;;
      *) printf 'unsupported FreeBSD version in /usr/src' >&2 ; exit 99 ;;
 esac
+
+src_timestamp=$(date -r "$(stat -f "%m" $param_h)" "+%Y%m%d%H%M.%S")
 
 #################################################################################
 
@@ -103,6 +107,10 @@ else
                "${install_dir}/etc/minit/$(basename "$f")"
     done
 
+    find "$install_dir" -type f -flags schg -exec chflags noschg "{}" ";" \
+	 -exec touch -t "$src_timestamp" "{}" ";" \
+	 -exec chflags noschg "{}" ";"
+    find "$install_dir" -not -flags schg -exec touch -t "$src_timestamp" "{}" ";"
     tar -C "$install_dir" -cvaf "$archive" \
         boot var dev etc bin sbin lib libexec sbin usr root
 
@@ -111,3 +119,7 @@ else
     rm -rf "$install_img"
     touch "$_tar_done"
 fi
+
+#################################################################################
+
+printf '> archive SHA256: %s\n' "$(sha256 -q "$archive")"
