@@ -39,12 +39,22 @@ base_targets="bin/sh
 kldload filemon || true
 
 #################################################################################
+
+case $(grep define\ __FreeBSD_version /usr/src/sys/sys/param.h|cut -w -f 3) in
+     12*) src_version=12 ;;
+     13*) src_version=13;;
+     *) printf 'unsupported FreeBSD version in /usr/src' >&2 ; exit 99 ;;
+esac
+
+#################################################################################
+
 if [ -f "$_build_done" ] ; then
     printf '> marker "%s" exists: skip build step\n' "$_build_done"
 else
     ##  kernel
     env KERNCONFDIR="$kern_conf_dir" \
-        make -s -j8 -C /usr/src  SRC_ENV_CONF="$src_env_conf" buildkernel
+        make -s -j8 -C /usr/src  SRC_ENV_CONF="$src_env_conf" buildkernel \
+	KERNCONF=BH"${src_version}"
 
     for tgt in $base_targets
     do make -s -j8 -C /usr/src/"$tgt" SRC_ENV_CONF="$src_env_conf"
@@ -73,7 +83,7 @@ else
     # install kernel
     env KERNCONFDIR="$kern_conf_dir" \
         make -s -C /usr/src SRC_ENV_CONF="$src_env_conf" DESTDIR="$install_dir" \
-        installkernel
+        installkernel KERNCONF=BH"${src_version}"
 
     # install bin/sh and libraries
     for tgt in $base_targets
