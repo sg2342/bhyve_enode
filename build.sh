@@ -1,6 +1,7 @@
 #!/bin/sh -e
 #
 
+usr_src=${usr_src:-"/usr/src"}
 basedir=$(dirname "$(realpath "$0")")
 
 src_env_conf="${basedir}/src-env.conf"
@@ -40,12 +41,12 @@ kldload filemon || true
 
 #################################################################################
 
-param_h=/usr/src/sys/sys/param.h
+param_h="$usr_src"/sys/sys/param.h
 
 case $(grep define\ __FreeBSD_version $param_h|cut -w -f 3) in
      12*) src_version=12 ;;
      13*) src_version=13;;
-     *) printf 'unsupported FreeBSD version in /usr/src' >&2 ; exit 99 ;;
+     *) printf 'unsupported FreeBSD version in "$usr_src"' >&2 ; exit 99 ;;
 esac
 
 src_timestamp=$(date -r "$(stat -f "%m" $param_h)" "+%Y%m%d%H%M.%S")
@@ -57,11 +58,11 @@ if [ -f "$_build_done" ] ; then
 else
     ##  kernel
     env KERNCONFDIR="$kern_conf_dir" \
-        make -s -j8 -C /usr/src  SRC_ENV_CONF="$src_env_conf" buildkernel \
+        make -s -j8 -C "$usr_src"  SRC_ENV_CONF="$src_env_conf" buildkernel \
 	KERNCONF=BH"${src_version}"
 
     for tgt in $base_targets
-    do make -s -j8 -C /usr/src/"$tgt" SRC_ENV_CONF="$src_env_conf"
+    do make -s -j8 -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf"
     done
 
     ## build minit
@@ -86,12 +87,12 @@ else
 
     # install kernel
     env KERNCONFDIR="$kern_conf_dir" \
-        make -s -C /usr/src SRC_ENV_CONF="$src_env_conf" DESTDIR="$install_dir" \
+        make -s -C "$usr_src" SRC_ENV_CONF="$src_env_conf" DESTDIR="$install_dir" \
         installkernel KERNCONF=BH"${src_version}"
 
     # install bin/sh and libraries
     for tgt in $base_targets
-    do make -s -C /usr/src/"$tgt" SRC_ENV_CONF="$src_env_conf" \
+    do make -s -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf" \
             DESTDIR="$install_dir" install
     done
 
