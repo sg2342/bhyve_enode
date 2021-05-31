@@ -24,11 +24,13 @@ export SRCCONF="$src_conf"
 ## /bin/sh and the libraries needed by it
 ## additional libraries needed by erts runtime
 base_targets="bin/sh
+	 lib/libgcc_s
          lib/msun
          lib/libc
+	 lib/libc++
+	 lib/libcxxrt
          lib/libedit
          lib/ncurses/ncurses
-         lib/ncurses/ncursesw
          libexec/rtld-elf
          lib/libutil
          lib/libdl
@@ -44,7 +46,6 @@ kldload filemon || true
 param_h="$usr_src"/sys/sys/param.h
 
 case $(grep define\ __FreeBSD_version $param_h|cut -w -f 3) in
-     12*) src_version=12 ;;
      13*) src_version=13;;
      *) printf 'unsupported FreeBSD version in "$usr_src"' >&2 ; exit 99 ;;
 esac
@@ -56,13 +57,14 @@ src_timestamp=$(date -r "$(stat -f "%m" $param_h)" "+%Y%m%d%H%M.%S")
 if [ -f "$_build_done" ] ; then
     printf '> marker "%s" exists: skip build step\n' "$_build_done"
 else
+    ncpu=$(sysctl -n hw.ncpu)
     ##  kernel
     env KERNCONFDIR="$kern_conf_dir" \
-        make -s -j8 -C "$usr_src"  SRC_ENV_CONF="$src_env_conf" buildkernel \
+        make -s -j"$ncpu" -C "$usr_src"  SRC_ENV_CONF="$src_env_conf" buildkernel \
 	KERNCONF=BH"${src_version}"
 
     for tgt in $base_targets
-    do make -s -j8 -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf"
+    do make -s -j"$ncpu" -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf"
     done
 
     ## build minit

@@ -3,9 +3,9 @@ env:
   ARCH: amd64
 
 freebsd_instance:
-  image_family: freebsd-12-1
+  image_family: freebsd-13-0
   cpu: 4
-  memory: 24G
+  memory: 16G
 
 task:
   timeout_in: 90m
