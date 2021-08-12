@@ -5,6 +5,7 @@ ident		BH
 options 	SCHED_ULE		# ULE scheduler
 options 	NUMA			# Non-Uniform Memory Architecture support
 options 	PREEMPTION		# Enable kernel thread preemption
+options		VIMAGE			# Subsystem virtualization, e.g. VNET
 options 	INET			# InterNETworking
 options 	INET6			# IPv6 communications protocols
 options 	TCP_OFFLOAD		# TCP offload
@@ -50,6 +51,7 @@ device		pci
 device		loop			# Network loopback
 device		rdrand_rng		# Intel Bull Mountain RNG
 device		ether			# Ethernet support
+device		crypto
 
 options		PCI_HP
 options		PCI_IOV
