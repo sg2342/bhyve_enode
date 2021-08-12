@@ -35,6 +35,7 @@ base_targets="bin/sh
          lib/libutil
          lib/libdl
          lib/libelf
+	 lib/libnv
          lib/libz
          lib/libthr
          lib/librt"
