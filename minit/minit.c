@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/param.h>
+#include <sys/linker.h>
 #include <sys/mount.h>
 #include <sys/reboot.h>
 #include <sys/ioctl.h>
@@ -24,6 +25,7 @@
 
 #define MINIT_MAX_NETIF 10
 #define MINIT_MAX_ROUTE 10
+#define MINIT_MAX_KLD   10
 #define KILL_GRACE_TIME 23
 #define START_PROG "/etc/minit/start0"
 
@@ -32,9 +34,13 @@ static int Alarm = 0;
 
 static void setup_devfs(void);
 static void setup_console(void);
+static void setup_kld(void);
 static void remount_root();
 static void setup_hostname();
 static int net_env_kv(const char *fmt, int i, char *first, char **second);
+static int iface_prep(const char *iface);
+static int iface_up(const char *iface);
+static int iface_clone(const char *iface);
 static void setup_network(void);
 static void ip4_config(const char *iface, const char *cidr);
 static void ip6_config(const char *iface, const char *cidr);
@@ -57,6 +63,7 @@ main(int argc __unused, char **argv __unused)
 	setup_devfs();
 	setup_console();
 	remount_root();
+	setup_kld();
 	setup_hostname();
 	setup_network();
 	setup_signal_handlers();
@@ -102,6 +109,25 @@ setup_console(void)
 	ioctl(fd, TIOCSCTTY, (char *)0);
 	ioctl(fd, TIOCSPGRP, &pgrp);
 	printf("> setup_console()\n");
+}
+
+static void
+setup_kld(void)
+{
+	int i;
+	char kenv_key[256];
+	char file[512];
+
+        printf("> setup_kld()\n");
+
+	for (i = 0; i < MINIT_MAX_KLD; i++) {
+		snprintf(kenv_key, (sizeof kenv_key) -1, "minit.kld.%d", i);
+		if (kenv(KENV_GET, kenv_key, file, 511) > 0) {
+			printf(">> %s\n", file);
+			if (kldload(file) == -1)
+				printf("FAILED: kldload(): %s\n", strerror(errno));
+		}
+	}
 }
 
 static void
@@ -207,7 +233,8 @@ setup_network(void)
 
 	for (i = 0; i < MINIT_MAX_NETIF; i++)
 		if (net_env_kv("minit.ip4.iface.%d", i, first, &second))
-			ip4_config(first, second);
+			if (iface_prep(first) == 0)
+				ip4_config(first, second);
 
 	printf(">> ipv6 interfaces\n");
 
@@ -215,7 +242,8 @@ setup_network(void)
 
 	for (i = 0; i < MINIT_MAX_NETIF; i++)
 		if (net_env_kv("minit.ip6.iface.%d", i, first, &second))
-			ip6_config(first, second);
+			if (iface_prep(first) == 0)
+				ip6_config(first, second);
 
 	printf(">> ipv4 routes\n");
 
@@ -236,6 +264,86 @@ setup_network(void)
 			else
 				ip6_route(first, second);
 		}
+}
+
+static int
+iface_clone(const char *iface)
+{
+	struct ifreq ifr;
+	int sockfd;
+	int r = 0;
+
+	printf(">>> iface_clone(\"%s\")\n", iface);
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, iface, sizeof ifr.ifr_name);
+
+	if ((sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0)) < 0)
+		printf("FAILED: socket(): %s\n", strerror(errno));
+
+	if (ioctl(sockfd, SIOCIFCREATE2, &ifr)) {
+		printf("FAILED ioctl(): %s\n", strerror(errno));
+		r = 1;
+	}
+	close(sockfd);
+	return r;
+}
+
+static int
+iface_up(const char *iface)
+{
+	struct ifreq ifr;
+	int sockfd;
+	int flags;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, iface, sizeof ifr.ifr_name);
+
+	if ((sockfd = socket(AF_LOCAL, SOCK_DGRAM, 0)) < 0) {
+		printf("FAILED: socket(): %s\n", strerror(errno));
+		return -1;
+	}
+
+	if (ioctl(sockfd, SIOCGIFFLAGS, &ifr)) {
+		close(sockfd);
+		return (errno);
+	}
+
+	flags =  ((ifr.ifr_flags & 0xffff) | (ifr.ifr_flagshigh << 16));
+	if (flags & IFF_UP) {
+		close(sockfd);
+		return 0;
+	}
+
+	printf(">>> iface_up(\"%s\")\n", iface);
+
+	flags |= IFF_UP;
+	memset(&ifr, 0, sizeof ifr);
+	strncpy(ifr.ifr_name, iface, sizeof ifr.ifr_name);
+	ifr.ifr_flags = flags & 0xffff;
+	ifr.ifr_flagshigh = flags >> 16;
+	if (ioctl(sockfd, SIOCSIFFLAGS, &ifr)) {
+		printf("FAILED ioctl(): %s\n", strerror(errno));
+		close(sockfd);
+		return 1;
+	}
+
+	close(sockfd);
+	return 0;
+}
+
+static int
+iface_prep(const char *iface)
+{
+	int r;
+	if ((r = iface_up(iface)) == 0)
+	    return 0;
+	if (r == ENXIO) {
+		if (iface_clone(iface) == 0)
+			return iface_up(iface);
+		return -1;
+	}
+	return -1;
 }
 
 static void
