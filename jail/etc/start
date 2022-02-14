@@ -1,0 +1,60 @@
+#!/bin/sh
+PATH=/sbin:/bin
+export PATH
+
+case ${1##*/} in
+    new_start_erl.data)
+        START_ERL_DATA="$1"
+        RELEASE_ROOT_DIR=${1%%/releases/new_start_erl.data}
+    ;;
+    *)
+        RELEASE_ROOT_DIR=$1
+        START_ERL_DATA="$RELEASE_ROOT_DIR/releases/start_erl.data"
+    ;;
+esac
+
+read -r ERTS_VSN REL_VSN < "$START_ERL_DATA" || true
+REL_NAME=${RELEASE_ROOT_DIR##*/}
+REL_DIR="$RELEASE_ROOT_DIR/releases/$REL_VSN"
+ERTS_DIR="$RELEASE_ROOT_DIR/erts-$ERTS_VSN"
+SYS_CONFIG="$REL_DIR/sys.config"
+VM_ARGS="$REL_DIR/vm.args"
+
+export HOME="$RELEASE_ROOT_DIR"
+export ROOTDIR="$RELEASE_ROOT_DIR"
+export BINDIR="$ERTS_DIR/bin"
+export EMU="beam"
+export PROGNAME="erl"
+ERTS_LIB_DIR="$ERTS_DIR/../lib"
+[ -f "$REL_DIR/$REL_NAME.boot" ] && BOOTFILE="$REL_NAME" || BOOTFILE=start
+cd "$ROOTDIR" || exit
+
+export HEART_COMMAND="/etc/heart_command"
+export HEART_BEAT_TIMEOUT=30
+export TERM=xterm
+
+SNAME_FILE="/etc/sname"
+NAME_FILE="/etc/name"
+ERL_INETRC_FILE="/etc/erl_inetrc"
+
+if [ -f "$ERL_INETRC_FILE" ] ; then
+export ERL_INETRC="$ERL_INETRC_FILE"
+fi
+
+if [ -f "$NAME_FILE" ] ; then
+  read -r NAMEV < "$NAME_FILE" || true
+  if [ -n "$NAMEV" ] ; then
+    SET_NAME="-name $NAMEV"
+  fi
+elif [ -f "$SNAME_FILE" ] ; then
+  read -r NAMEV < "$SNAME_FILE" || true
+  if [ -n "$NAMEV" ] ; then
+    SET_NAME="-sname $NAMEV"
+  fi
+fi
+
+exec "$BINDIR"/erlexec -config "$SYS_CONFIG" -args_file "$VM_ARGS" \
+     -mode embedded -boot_var ERTS_LIB_DIR "$ERTS_LIB_DIR" \
+     $SET_NAME \
+     -boot "$REL_DIR/$BOOTFILE" -noinput -heart \
+    >/var/log/erlang.log  2>&1

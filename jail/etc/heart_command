@@ -1,0 +1,3 @@
+#!/bin/sh 
+hostname=$(/sbin/sysctl -b kern.hostname)
+/bin/pkill -HUP -f JAIL_RC"${hostname%%.*}"

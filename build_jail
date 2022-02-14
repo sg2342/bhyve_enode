@@ -1,0 +1,180 @@
+#!/bin/sh -e
+#
+
+usr_src=${usr_src:-"/usr/src"}
+basedir=$(dirname "$(realpath "$0")")
+
+src_env_conf="${basedir}/src-env.conf"
+src_conf="${basedir}/src.conf"
+
+kern_conf_dir="${basedir}/kernel"
+
+base_targets="bin/sh
+	 lib/libgcc_s
+         lib/msun
+         lib/libc
+	 lib/libc++
+	 lib/libcxxrt
+         lib/libedit
+         lib/ncurses/ncurses
+         libexec/rtld-elf
+         lib/libutil
+         lib/libdl
+         lib/libelf
+         lib/libz
+         lib/libthr
+         lib/librt
+	 share/termcap"
+
+jail_targets="lib/libkvm
+	lib/libjail
+	bin/pkill
+	sbin/sysctl"
+
+vnet_targets="lib/libnv
+	 lib/libpfctl
+	 lib/lib80211
+	 lib/libsbuf
+	 lib/libexpat
+	 lib/libifconfig
+	 sbin/route
+	 sbin/ifconfig
+	 sbin/pfctl"
+
+is_bhyve=""
+
+case $(basename "$0") in
+    build_vnet_jail)
+	enode_dist="${basedir}/jail_enode.dist"
+	obj_dir_pfx="${basedir}/_build/vnet_jail_enode"
+	archive="${obj_dir_pfx}/../vnet_jail_enode.txz"
+	;;
+    build_jail)
+	enode_dist="${basedir}/jail_enode.dist"
+	obj_dir_pfx="${basedir}/_build/jail_enode"
+	archive="${obj_dir_pfx}/../jail_enode.txz"
+	vnet_targets=""
+	;;
+    build_bhyve)
+	enode_dist="${basedir}/enode.dist"
+	obj_dir_pfx="${basedir}/_build/bhyve_enode"
+	archive="${obj_dir_pfx}/../bhyve_enode.txz"
+	vnet_targets=""
+	jail_targets=""
+	is_bhyve=1
+	;;
+    *)
+	exit 1
+       ;;
+esac
+
+_build_done="${obj_dir_pfx}/_build_done"
+_tar_done="${obj_dir_pfx}/_tar_done"
+
+install_dir="${obj_dir_pfx}/install_dir"
+
+export MAKEOBJDIRPREFIX="$obj_dir_pfx"
+export SRCCONF="$src_conf"
+
+
+kldload filemon || true
+
+#################################################################################
+
+param_h="$usr_src"/sys/sys/param.h
+
+case $(grep define\ __FreeBSD_version $param_h|cut -w -f 3) in
+     13*) src_version=13;;
+     *) printf 'unsupported FreeBSD version in "$usr_src"' >&2 ; exit 99 ;;
+esac
+
+src_timestamp=$(date -r "$(stat -f "%m" $param_h)" "+%Y%m%d%H%M.%S")
+
+#################################################################################
+
+if [ -f "$_build_done" ] ; then
+    printf '> marker "%s" exists: skip build step\n' "$_build_done"
+else
+    ncpu=$(sysctl -n hw.ncpu)
+
+    for tgt in $base_targets $jail_targets $vnet_targets
+    do make -s -j"$ncpu" -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf"
+    done
+
+    if [ "$is_bhyve" ]; then
+	##  kernel
+	env KERNCONFDIR="$kern_conf_dir" \
+            make -s -j"$ncpu" -C "$usr_src"  SRC_ENV_CONF="$src_env_conf" buildkernel \
+	    KERNCONF=BH"${src_version}"
+
+	## build minit
+	make -s -C "${basedir}/minit" SRC_ENV_CONF="$src_env_conf" obj
+	make -s -C "${basedir}/minit" SRC_ENV_CONF="$src_env_conf" \
+             WITHOUT_DEBUG_FILES=1
+
+    fi
+
+    touch "$_build_done"
+fi
+
+#################################################################################
+
+if [ -f "$_tar_done" ] ; then
+    printf '> marker "%s" exists: skip tar step\n' "$_tar_done"
+else
+    if [ -d "$install_dir" ]; then
+	chflags -R noschg "$install_dir"
+	rm -rf "$install_dir"
+    fi
+    mkdir -p "$install_dir"
+    mtree -deU -f "$enode_dist" -p "$install_dir"
+
+    for tgt in $base_targets $jail_targets $vnet_targets
+    do make -s -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf" \
+            DESTDIR="$install_dir" install
+    done
+
+    if [ "$is_bhyve" ] ; then
+	# install kernel
+	env KERNCONFDIR="$kern_conf_dir" \
+            make -s -C "$usr_src" SRC_ENV_CONF="$src_env_conf" DESTDIR="$install_dir" \
+            installkernel KERNCONF=BH"${src_version}"
+	## install minit
+	make -s -C "${basedir}/minit" SRC_ENV_CONF="$src_env_conf" \
+             DESTDIR="$install_dir"/sbin install WITHOUT_DEBUG_FILES=1
+	for f in "${basedir}/minit/etc_minit/"*
+	do install -o root -g wheel -m 555 "$f" \
+		   "${install_dir}/etc/minit/$(basename "$f")"
+	done
+    else
+	for f in "${basedir}/jail/etc/"*
+	do install -o root -g wheel -m 555 "$f" \
+		   "${install_dir}/etc/$(basename "$f")"
+	done
+    fi
+
+    ## remove static libraries, pkgconfig data and symbolic links
+    rm -rf "$install_dir"/usr/lib/lib*.a "$install_dir"/usr/libdata
+    find "$install_dir"/usr -type l -delete
+    rm -rf "$install_dir"/bin/pgrep
+
+    find "$install_dir" -type f -flags schg -exec chflags noschg "{}" ";" \
+	 -exec touch -t "$src_timestamp" "{}" ";" \
+	 -exec chflags noschg "{}" ";"
+    find "$install_dir" -not -flags schg -exec touch -t "$src_timestamp" "{}" ";"
+
+    if [ "$is_bhyve" ] ; then
+        tar -C "$install_dir" -cvaf "$archive" \
+            boot var dev etc bin sbin lib libexec sbin usr root
+    else
+        tar -C "$install_dir" -cvaf "$archive" \
+            var dev etc bin sbin lib libexec sbin usr root
+    fi
+
+    rm -rf "$install_dir"
+    touch "$_tar_done"
+fi
+
+#################################################################################
+
+printf '> archive (%s) SHA256: %s\n' "$archive" "$(sha256 -q "$archive")"

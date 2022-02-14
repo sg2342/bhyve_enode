@@ -1,0 +1,45 @@
+#!/bin/sh
+
+RELEASE_ROOT_DIR=/root
+START_ERL_DATA="$RELEASE_ROOT_DIR/releases/start_erl.data"
+read -r ERTS_VSN REL_VSN < "$START_ERL_DATA" || true
+REL_DIR="$RELEASE_ROOT_DIR/releases/$REL_VSN"
+ERTS_DIR="$RELEASE_ROOT_DIR/erts-$ERTS_VSN"
+
+
+export HOME="$RELEASE_ROOT_DIR"
+export ROOTDIR="$RELEASE_ROOT_DIR"
+export BINDIR="$ERTS_DIR/bin"
+export EMU="beam"
+export PROGNAME="erl"
+
+SNAME_FILE="/etc/sname"
+NAME_FILE="/etc/name"
+ERL_INETRC_FILE="/etc/erl_inetrc"
+
+if [ -f "$ERL_INETRC_FILE" ] ; then
+  export ERL_INETRC="$ERL_INETRC_FILE"
+fi
+
+if [ $# -eq 0 ] ; then
+    if [ -f "$NAME_FILE" ] ; then
+	read -r NAMEV < "$NAME_FILE" || true
+	if [ -n "$NAMEV" ] ; then
+	    SET_NAME="-name $NAMEV$$"
+	fi
+    elif [ -f "$SNAME_FILE" ] ; then
+	read -r NAMEV < "$SNAME_FILE" || true
+	if [ -n "$NAMEV" ] ; then
+	    SET_NAME="-sname $NAMEV$$"
+	fi
+    fi
+    if [ "$NAMEV" ] ; then
+	REMSH="-remsh $NAMEV"
+	"$BINDIR"/erlexec -boot "$REL_DIR"/start_clean -mode interactive -hidden \
+		 $SET_NAME $REMSH
+    else
+	exit 1
+    fi
+else
+    "$BINDIR"/erlexec -boot "$REL_DIR"/start_clean -mode interactive -hidden $@
+fi
