@@ -16,7 +16,7 @@ base_targets="bin/sh
 	 lib/libc++
 	 lib/libcxxrt
          lib/libedit
-         lib/ncurses/ncurses
+         lib/ncurses
          libexec/rtld-elf
          lib/libutil
          lib/libdl
@@ -85,6 +85,7 @@ param_h="$usr_src"/sys/sys/param.h
 
 case $(grep define\ __FreeBSD_version $param_h|cut -w -f 3) in
      13*) src_version=13;;
+     14*) src_version=14;;
      *) printf 'unsupported FreeBSD version in "$usr_src"' >&2 ; exit 99 ;;
 esac
 
@@ -97,10 +98,6 @@ if [ -f "$_build_done" ] ; then
 else
     ncpu=$(sysctl -n hw.ncpu)
 
-    for tgt in $base_targets $jail_targets $vnet_targets
-    do make -s -j"$ncpu" -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf"
-    done
-
     if [ "$is_bhyve" ]; then
 	##  kernel
 	env KERNCONFDIR="$kern_conf_dir" \
@@ -112,7 +109,14 @@ else
 	make -s -C "${basedir}/minit" SRC_ENV_CONF="$src_env_conf" \
              WITHOUT_DEBUG_FILES=1
 
+	## build userboot_4th.so
+	make -s -j"$ncpu" -C "$usr_src"/stand SRC_ENV_CONF="$src_env_conf"
+	make -s -j"$ncpu" -C "$usr_src"/stand/userboot/userboot_4th SRC_ENV_CONF="$src_env_conf"
     fi
+
+    for tgt in $base_targets $jail_targets $vnet_targets
+    do make -s -j"$ncpu" -C "$usr_src"/"$tgt" SRC_ENV_CONF="$src_env_conf"
+    done
 
     touch "$_build_done"
 fi
@@ -135,6 +139,8 @@ else
     done
 
     if [ "$is_bhyve" ] ; then
+	# install userboot_4th.so
+	make -s -C "$usr_src"/stand/userboot/userboot_4th DESTDIR="$install_dir" install
 	# install kernel
 	env KERNCONFDIR="$kern_conf_dir" \
             make -s -C "$usr_src" SRC_ENV_CONF="$src_env_conf" DESTDIR="$install_dir" \
