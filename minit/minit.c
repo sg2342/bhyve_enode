@@ -119,6 +119,7 @@ remount_root()
 	char _update[] = "update";
 	char _fstype[] = "fstype";
 	char _ufs[] = "ufs";
+	char _p9fs[] = "p9fs";
 	char _fspath[] = "fspath";
 	char _slash[] = "/";
 	char _from[] = "from";
@@ -127,8 +128,14 @@ remount_root()
 
 	b = kenv(KENV_GET, "vfs.root.mountfrom", kenv_value,
 	    (sizeof kenv_value) - 1);
-	if (b < 4 || strncmp(kenv_value, "ufs:", 4) != 0) {
-		printf("FAILED: kenv\n");
+	if (b > 4 && strncmp(kenv_value, "ufs:", 4) != 0) {
+	  iov[11].iov_base = _ufs;
+	  iov[11].iov_len = sizeof _ufs;
+	} else if (b > 5 && strncmp(kenv_value, "p9fs:", 5) == 0) {
+	  iov[11].iov_base = _p9fs;
+	  iov[11].iov_len = sizeof _p9fs;
+	} else {
+		printf("FAILED: KENV\n");
 		return;
 	}
 	dev = kenv_value + 4;
@@ -155,8 +162,6 @@ remount_root()
 	iov[9].iov_len = 0;
 	iov[10].iov_base = _fstype;
 	iov[10].iov_len = sizeof _fstype;
-	iov[11].iov_base = _ufs;
-	iov[11].iov_len = sizeof _ufs;
 	iov[12].iov_base = _fspath;
 	iov[12].iov_len = sizeof _fspath;
 	iov[13].iov_base = _slash;
