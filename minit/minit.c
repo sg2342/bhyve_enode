@@ -18,6 +18,7 @@
 #include <kenv.h>
 #include <paths.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
@@ -26,6 +27,7 @@
 #define MINIT_MAX_ROUTE 10
 #define KILL_GRACE_TIME 23
 #define START_PROG "/etc/minit/start0"
+#define ENV_FILE "/etc/minit.env"
 
 static int Reboot = 0;
 static int Alarm = 0;
@@ -33,6 +35,7 @@ static int Alarm = 0;
 static void setup_devfs(void);
 static void setup_console(void);
 static void remount_root();
+static void minit_env();
 static void setup_hostname();
 static int net_env_kv(const char *fmt, int i, char *first, char **second);
 static void setup_network(void);
@@ -57,6 +60,7 @@ main(int argc __unused, char **argv __unused)
 	setup_devfs();
 	setup_console();
 	remount_root();
+	minit_env();
 	setup_hostname();
 	setup_network();
 	setup_signal_handlers();
@@ -173,6 +177,34 @@ remount_root()
 
 	if (nmount(iov, 16, 0) != 0)
 		printf("FAILED: nmount (%s)\n", strerror(errno));
+}
+
+static void
+minit_env()
+{
+	printf("> minit_env()\n");
+
+	FILE *env;
+	if ((env = fopen(ENV_FILE, "r")) == NULL) {
+		printf("FAILED: open "ENV_FILE" (%s)\n", strerror(errno));
+		return;
+	}
+	char *line = NULL;
+	size_t linecap = 0;
+	ssize_t linelen;
+	while ((linelen = getline(&line, &linecap, env)) > 0) {
+		char *val = strchr(line, '=');
+		if (val != NULL && line[0] != '#') {
+			*val++ = '\0';
+			line[linelen -1] = '\0';
+			int val_len = linelen - (val - line);
+			printf(">> %s=\"%s\"\n", line, val);
+			if(kenv(KENV_SET, line, val, val_len) != 0)
+				printf("FAILED: kenv_set (%s)\n", strerror(errno));
+		}
+	}
+	free(line);
+	fclose(env);
 }
 
 static void
